@@ -36,7 +36,7 @@ export const NFC: React.FC<NFCProps> = ({ onPaymentInfoReceived, onClose }) => {
             recipientAddress: jsonData.address || jsonData.recipientAddress,
             amount: jsonData.amount,
             tokenAddress: jsonData.tokenAddress,
-            chainId: jsonData.chainId,
+            chainId: jsonData.chainId || jsonData.chain_id,
           };
         }
       } catch {
@@ -73,7 +73,7 @@ export const NFC: React.FC<NFCProps> = ({ onPaymentInfoReceived, onClose }) => {
             recipientAddress: decoded.address || decoded.recipientAddress,
             amount: decoded.amount,
             tokenAddress: decoded.tokenAddress,
-            chainId: decoded.chainId,
+            chainId: decoded.chainId || decoded.chain_id,
           };
         } catch {
           return null;
