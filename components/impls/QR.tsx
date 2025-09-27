@@ -2,12 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -47,6 +47,7 @@ export const QR: React.FC<QRProps> = ({ onPaymentInfoReceived, onClose }) => {
         }
       } catch {
         // Not JSON, continue with other parsing methods
+        console.warn("Not JSON, continuing with other parsing methods");
       }
 
       // Try EIP-681 format
@@ -91,6 +92,8 @@ export const QR: React.FC<QRProps> = ({ onPaymentInfoReceived, onClose }) => {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     if (!isScanning) return;
+
+    console.log("QR got scanned"); 
     
     setIsScanning(false);
     const paymentInfo = getPaymentInfo(data);
