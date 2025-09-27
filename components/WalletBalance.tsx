@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacit
 import { getAvailableChains, getChainConfig } from '../constants/config';
 import { useWallet } from '../contexts/WalletContext';
 import { getMultipleTokenBalances, getNativeBalance, TokenBalance } from '../utils/tokenUtils';
+import { Send } from './ui/Send';
 
 interface WalletBalanceProps {
   chainName?: string;
@@ -75,6 +76,22 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
       // In a real app, you'd use a clipboard library
       Alert.alert('Address Copied', wallet.address);
     }
+  };
+
+  const handleSend = () => {
+      if (wallet) {
+        <Send />
+      } else {
+        Alert.alert('Wallet Not Connected', 'Please connect your wallet to send');
+      }
+  };
+
+  const handleReceive = () => {
+    Alert.alert('Receive', 'Receive functionality will be implemented here');
+  };
+
+  const handleSubscribe = () => {
+    Alert.alert('Subscribe', 'Subscribe functionality will be implemented here');
   };
 
   if (!isConnected || !wallet) {
@@ -200,6 +217,21 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
         <TouchableOpacity onPress={loadBalance} style={styles.refreshButton}>
           <Text style={styles.refreshText}>Refresh Balance</Text>
         </TouchableOpacity>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleSend}>
+            <Text style={styles.actionButtonText}>Send</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={handleReceive}>
+            <Text style={styles.actionButtonText}>Receive</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.actionButton} onPress={handleSubscribe}>
+            <Text style={styles.actionButtonText}>Subscribe</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -430,6 +462,28 @@ const styles = StyleSheet.create({
   },
   refreshText: {
     color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter',
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: '#00ff88',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#00ff88',
+  },
+  actionButtonText: {
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter',
