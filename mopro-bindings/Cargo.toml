@@ -9,7 +9,8 @@ crate-type = ["lib", "cdylib", "staticlib"]
 
 # Adapters for different proof systems
 [features]
-default = []
+default = ["noir"]
+noir = []
 
 [dependencies]
 mopro-wasm = { git = "https://github.com/zkmopro/mopro.git" }
@@ -21,6 +22,7 @@ thiserror = "2.0.12"
 # HALO2_DEPENDENCIES
 
 # NOIR_DEPENDENCIES
+noir = { git = "https://github.com/zkmopro/noir-rs", features = ["barretenberg", "srs-downloader"] }
 
 [build-dependencies]
 mopro-ffi = { git = "https://github.com/zkmopro/mopro.git" }

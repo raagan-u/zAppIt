@@ -16,6 +16,46 @@ fn mopro_uniffi_hello_world() -> String {
     "Hello, World!".to_string()
 }
 
+/// Generate a proof for circle membership and action using your anon_circle circuit
+#[uniffi::export]
+fn generate_anon_circle_proof(
+    secret: String,
+    circle_commitment: String,
+    nullifier: String,
+    circle_id: String,
+    action_type: String,
+    content_hash: String,
+    vote_option: String,
+) -> Result<String, String> {
+    let srs_path = "./test-vectors/noir/anon_circle.srs".to_string();
+    let circuit_path = "./test-vectors/noir/anon_circle.json".to_string();
+    let circuit_inputs = vec![
+        secret,
+        circle_commitment,
+        nullifier,
+        circle_id,
+        action_type,
+        content_hash,
+        vote_option,
+    ];
+    
+    match generate_noir_proof(circuit_path, Some(srs_path), circuit_inputs) {
+        Ok(proof) => Ok(proof),
+        Err(e) => Err(format!("Failed to generate proof: {}", e)),
+    }
+}
+
+/// Verify a proof for circle membership and action using your anon_circle circuit
+#[uniffi::export]
+fn verify_anon_circle_proof(proof: String) -> Result<bool, String> {
+    let circuit_path = "./test-vectors/noir/anon_circle.json".to_string();
+    
+    match verify_noir_proof(circuit_path, proof) {
+        Ok(valid) => Ok(valid),
+        Err(e) => Err(format!("Failed to verify proof: {}", e)),
+    }
+}
+
 // CIRCOM_TEMPLATE
 
 // HALO2_TEMPLATE
@@ -25,10 +65,11 @@ mod noir_tests {
     use super::*;
 
     #[test]
-    fn test_noir_multiplier2() {
-        let srs_path = "./test-vectors/noir/noir_multiplier2.srs".to_string();
-        let circuit_path = "./test-vectors/noir/noir_multiplier2.json".to_string();
-        let circuit_inputs = vec!["3".to_string(), "5".to_string()];
+    fn test_noir_anon_circle() {
+        let srs_path = "./test-vectors/noir/anon_circle.srs".to_string();
+        let circuit_path = "./test-vectors/noir/anon_circle.json".to_string();
+        // Test inputs for your anon_circle circuit: secret, circle_commitment, nullifier, circle_id, action_type, content_hash, vote_option
+        let circuit_inputs = vec!["1".to_string(), "1".to_string(), "2".to_string(), "3".to_string(), "0".to_string(), "4".to_string(), "0".to_string()];
         let result = generate_noir_proof(
             circuit_path.clone(),
             Some(srs_path.clone()),

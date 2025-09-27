@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet,
@@ -12,11 +12,27 @@ import { DemoScreen } from "./src/screens/DemoScreen";
 import { CreateCircleScreen } from "./src/screens/CreateCircleScreen";
 import { JoinCircleScreen } from "./src/screens/JoinCircleScreen";
 import { MyCirclesScreen } from "./src/screens/MyCirclesScreen";
+import { initializeZKProofs } from "./src/services/zkProofs";
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<
     "my-circles" | "create" | "join" | "demo"
   >("my-circles");
+
+  // Initialize ZK proof system when app starts
+  useEffect(() => {
+    const initZK = async () => {
+      try {
+        console.log("🚀 Initializing ZK proof system...");
+        await initializeZKProofs();
+        console.log("✅ ZK proof system initialized successfully");
+      } catch (error) {
+        console.error("❌ Failed to initialize ZK proof system:", error);
+      }
+    };
+
+    initZK();
+  }, []);
 
   const renderScreen = () => {
     switch (currentScreen) {

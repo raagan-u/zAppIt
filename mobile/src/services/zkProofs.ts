@@ -1,17 +1,17 @@
 /**
  * ZK Proof service for React Native
- * Handles generation and verification of zero-knowledge proofs
+ * Handles generation and verification of zero-knowledge proofs using Mopro
  *
- * Note: This is a simplified implementation for the hackathon demo.
- * In production, you would use a proper ZK proving system like:
- * - Mopro with native modules
- * - WebAssembly-based provers
- * - On-chain verification
+ * This service integrates with your Noir circuits to generate real ZK proofs
+ * for circle membership and actions.
  */
 
 import { ZKProofInputs, ZKProofResult } from "../types";
 import { generateNullifier, circleIdToNumeric } from "../utils/encryption";
 import { verifyMembership } from "./blockchain";
+
+// Import Mopro React Native package
+import MoproReactNativePackage from "mopro-react-native-package";
 
 /**
  * Initialize the ZK proof system
@@ -19,15 +19,28 @@ import { verifyMembership } from "./blockchain";
  */
 export async function initializeZKProofs(): Promise<void> {
   try {
-    console.log("ZK Proof system initialized with Noir.js");
+    console.log("🔧 Initializing ZK Proof system with Mopro...");
+
+    // Initialize Mopro with your Noir circuits
+    await MoproReactNativePackage.initialize({
+      // Configure for your anon_circle circuit
+      circuits: {
+        anon_circle: {
+          circuitPath: "./assets/circuits/anon_circle.json",
+          srsPath: "./assets/circuits/default_18.srs",
+        },
+      },
+    });
+
+    console.log("✅ ZK Proof system initialized successfully with Mopro");
   } catch (error) {
-    console.error("Failed to initialize ZK proofs:", error);
+    console.error("❌ Failed to initialize ZK proofs:", error);
     throw new Error("Failed to initialize ZK proof system");
   }
 }
 
 /**
- * Generate a ZK proof for circle membership and action
+ * Generate a ZK proof for circle membership and action using your Noir circuit
  * @param inputs - The private inputs for the proof
  * @returns Promise with the proof result
  */
@@ -35,45 +48,74 @@ export async function generateZKProof(
   inputs: ZKProofInputs
 ): Promise<ZKProofResult> {
   try {
-    // Simulate proof generation delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    console.log("🔐 Generating ZK proof with Mopro and your Noir circuit...");
+    console.log("📋 Inputs:", {
+      secret: inputs.secret,
+      circleCommitment: inputs.circleCommitment,
+      nullifier: inputs.nullifier,
+      circleId: inputs.circleId,
+      actionType: inputs.actionType,
+      contentHash: inputs.contentHash,
+      voteOption: inputs.voteOption,
+    });
 
-    // Validate inputs (this simulates the circuit constraints)
-    if (inputs.secret !== inputs.circleCommitment) {
-      throw new Error(
-        "Invalid membership: secret does not match circle commitment"
-      );
-    }
-
-    // Generate nullifier commitment (simulates the circuit computation)
-    const nullifierCommitment = generateNullifierCommitment(
+    // Prepare inputs for your anon_circle circuit
+    // The circuit expects: secret, circle_commitment, nullifier, circle_id, action_type, content_hash, vote_option
+    const circuitInputs = [
       inputs.secret,
+      inputs.circleCommitment,
       inputs.nullifier,
-      inputs.circleId
+      inputs.circleId,
+      inputs.actionType?.toString() || "0",
+      inputs.contentHash || "0",
+      inputs.voteOption?.toString() || "0",
+    ];
+
+    console.log(
+      "🔧 Calling Mopro to generate proof with circuit inputs:",
+      circuitInputs
     );
 
-    console.log("🔍 ZK PROOF COMPUTATION:");
-    console.log("📋 Secret (for computation):", inputs.secret);
-    console.log("📋 Nullifier (for computation):", inputs.nullifier);
-    console.log("📋 Circle ID (for computation):", inputs.circleId);
-    console.log("📋 Computed nullifier commitment:", nullifierCommitment);
+    // Generate proof using Mopro with your anon_circle circuit
+    const proofResult = await MoproReactNativePackage.generateAnonCircleProof(
+      inputs.secret,
+      inputs.circleCommitment,
+      inputs.nullifier,
+      inputs.circleId,
+      inputs.actionType?.toString() || "0",
+      inputs.contentHash || "0",
+      inputs.voteOption?.toString() || "0"
+    );
 
-    console.log("✅ ZK proof generated successfully");
-    console.log("🔐 Nullifier commitment:", nullifierCommitment);
+    console.log("✅ ZK proof generated successfully with Mopro");
+    console.log("🔐 Proof result:", proofResult);
+
+    // The anon_circle function returns a JSON string proof
+    // Parse it to extract the proof data and public inputs
+    const parsedProof = JSON.parse(proofResult);
+
+    // Extract the nullifier commitment from the proof result
+    // This should match the output of your circuit's main function
+    const nullifierCommitment =
+      parsedProof.publicInputs?.[0] || parsedProof.proof;
 
     return {
-      proof: nullifierCommitment,
-      publicInputs: [nullifierCommitment],
+      proof: proofResult, // Return the JSON string proof
+      publicInputs: parsedProof.publicInputs || [nullifierCommitment],
       nullifierCommitment: nullifierCommitment,
     };
   } catch (error) {
-    console.error("❌ Error generating ZK proof:", error);
-    throw new Error("Failed to generate ZK proof");
+    console.error("❌ Error generating ZK proof with Mopro:", error);
+    throw new Error(
+      `Failed to generate ZK proof: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
 
 /**
- * Verify a ZK proof
+ * Verify a ZK proof using Mopro
  * @param proofResult - The proof result to verify
  * @returns Promise with verification result
  */
@@ -81,14 +123,17 @@ export async function verifyZKProof(
   proofResult: ZKProofResult
 ): Promise<boolean> {
   try {
-    // For now, we'll do a simple validation
-    // In a full implementation, this would verify the proof on-chain
-    const isValid = proofResult.proof && proofResult.publicInputs.length > 0;
+    console.log("🔍 Verifying ZK proof with Mopro...");
 
-    console.log("ZK proof verification result:", isValid);
+    // Verify proof using Mopro
+    const isValid = await MoproReactNativePackage.verifyAnonCircleProof(
+      proofResult.proof
+    );
+
+    console.log("✅ ZK proof verification result:", isValid);
     return isValid;
   } catch (error) {
-    console.error("Error verifying ZK proof:", error);
+    console.error("❌ Error verifying ZK proof with Mopro:", error);
     return false;
   }
 }
@@ -199,7 +244,10 @@ export async function verifyCircleMembership(
     console.error("❌ Error verifying circle membership:", error);
     return {
       isValid: false,
-      error: error.message || "Failed to verify circle membership",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to verify circle membership",
     };
   }
 }
