@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router';
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="wallet"
       screenOptions={{
         tabBarActiveTintColor: '#00ff88',
         tabBarInactiveTintColor: '#666666',

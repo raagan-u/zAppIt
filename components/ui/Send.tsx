@@ -32,6 +32,9 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
   const [nativeBalance, setNativeBalance] = useState('0');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showNFC, setShowNFC] = useState(false);
+  const [gasEstimate, setGasEstimate] = useState<string>('');
+  const [estimatedFee, setEstimatedFee] = useState<string>('');
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
 
   const availableChains = getAvailableChains();
 
@@ -84,6 +87,61 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
     }
   };
 
+  const estimateGasAndFee = async () => {
+    if (!wallet || !provider || !recipientAddress || !amount) {
+      setGasEstimate('');
+      setEstimatedFee('');
+      return;
+    }
+
+    try {
+      const chainConfig = getChainConfig(selectedChain);
+      const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+      const chainWallet = new ethers.Wallet(wallet.privateKey, chainProvider);
+
+      let gasEstimate: bigint;
+      let gasPrice: bigint;
+
+      if (selectedToken === 'native') {
+        // Estimate gas for native transfer
+        gasEstimate = await chainProvider.estimateGas({
+          from: wallet.address,
+          to: recipientAddress,
+          value: ethers.parseEther(amount),
+        });
+        gasPrice = await chainProvider.getFeeData().then(feeData => feeData.gasPrice || BigInt(0));
+      } else {
+        // Estimate gas for ERC-20 transfer
+        const token = availableTokens.find(t => t.token.address === selectedToken);
+        if (!token) return;
+
+        const ERC20_ABI = [
+          'function transfer(address to, uint256 amount) returns (bool)',
+        ];
+
+        const contract = new ethers.Contract(token.token.address, ERC20_ABI, chainWallet);
+        const amountWei = ethers.parseUnits(amount, token.token.decimals);
+        
+        gasEstimate = await contract.transfer.estimateGas(recipientAddress, amountWei);
+        gasPrice = await chainProvider.getFeeData().then(feeData => feeData.gasPrice || BigInt(0));
+      }
+
+      const fee = gasEstimate * gasPrice;
+      setGasEstimate(gasEstimate.toString());
+      setEstimatedFee(ethers.formatEther(fee));
+    } catch (error) {
+      console.error('Gas estimation error:', error);
+      setGasEstimate('');
+      setEstimatedFee('');
+    }
+  };
+
+  // Estimate gas when inputs change
+  useEffect(() => {
+    const timeoutId = setTimeout(estimateGasAndFee, 500);
+    return () => clearTimeout(timeoutId);
+  }, [recipientAddress, amount, selectedToken, selectedChain]);
+
   const handleTransfer = async () => {
     if (!wallet || !provider) {
       Alert.alert('Error', 'Wallet not connected');
@@ -117,20 +175,28 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
       return;
     }
 
+    // Check if recipient is the same as sender
+    if (recipientAddress.toLowerCase() === wallet.address.toLowerCase()) {
+      Alert.alert('Error', 'Cannot send to yourself');
+      return;
+    }
+
     try {
       setIsLoading(true);
       const chainConfig = getChainConfig(selectedChain);
       const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
       const chainWallet = new ethers.Wallet(wallet.privateKey, chainProvider);
 
+      let tx: any;
+      let transactionType: string;
+
       if (selectedToken === 'native') {
         // Send native currency
-        const tx = await chainWallet.sendTransaction({
+        transactionType = 'Native Transfer';
+        tx = await chainWallet.sendTransaction({
           to: recipientAddress,
           value: ethers.parseEther(amount),
         });
-        
-        Alert.alert('Success', `Transaction sent! Hash: ${tx.hash}`);
       } else {
         // Send ERC-20 token
         const token = availableTokens.find(t => t.token.address === selectedToken);
@@ -139,24 +205,98 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
           return;
         }
 
+        transactionType = 'ERC-20 Transfer';
         const ERC20_ABI = [
           'function transfer(address to, uint256 amount) returns (bool)',
+          'function decimals() view returns (uint8)',
+          'function symbol() view returns (string)',
         ];
 
         const contract = new ethers.Contract(token.token.address, ERC20_ABI, chainWallet);
         const amountWei = ethers.parseUnits(amount, token.token.decimals);
         
-        const tx = await contract.transfer(recipientAddress, amountWei);
-        Alert.alert('Success', `Transaction sent! Hash: ${tx.hash}`);
+        tx = await contract.transfer(recipientAddress, amountWei);
       }
 
-      // Reset form
-      setRecipientAddress('');
-      setAmount('');
-      onClose();
+      // Store transaction details
+      const transactionDetails = {
+        hash: tx.hash,
+        type: transactionType,
+        from: wallet.address,
+        to: recipientAddress,
+        amount: amount,
+        token: tokenInfo.symbol,
+        chain: chainConfig.name,
+        timestamp: new Date().toISOString(),
+      };
+      setLastTransaction(transactionDetails);
+
+      // Wait for transaction confirmation
+      Alert.alert(
+        'Transaction Sent!', 
+        `Transaction hash: ${tx.hash}\n\nWaiting for confirmation...`,
+        [
+          {
+            text: 'View Details',
+            onPress: () => {
+              // You could navigate to a transaction details screen here
+              console.log('Transaction details:', transactionDetails);
+            }
+          },
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset form and close
+              setRecipientAddress('');
+              setAmount('');
+              setGasEstimate('');
+              setEstimatedFee('');
+              onClose();
+            }
+          }
+        ]
+      );
+
+      // Wait for transaction receipt
+      try {
+        const receipt = await tx.wait();
+        console.log('Transaction confirmed:', receipt);
+        
+        // Reload balances after successful transaction
+        await loadBalances();
+        
+        Alert.alert(
+          'Transaction Confirmed!',
+          `Transaction ${tx.hash} has been confirmed in block ${receipt.blockNumber}`
+        );
+      } catch (receiptError) {
+        console.error('Transaction failed:', receiptError);
+        Alert.alert(
+          'Transaction Failed',
+          `Transaction ${tx.hash} failed to confirm. Please check the transaction status.`
+        );
+      }
+
     } catch (error) {
       console.error('Transfer error:', error);
-      Alert.alert('Error', `Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        if (error.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds for gas fee';
+        } else if (error.message.includes('user rejected')) {
+          errorMessage = 'Transaction rejected by user';
+        } else if (error.message.includes('gas')) {
+          errorMessage = 'Gas estimation failed or insufficient gas';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      Alert.alert('Transfer Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -312,6 +452,21 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
               </Text>
             )}
           </View>
+
+          {/* Gas Estimation */}
+          {gasEstimate && estimatedFee && (
+            <View style={styles.gasInfoContainer}>
+              <Text style={styles.gasInfoTitle}>Transaction Fee</Text>
+              <View style={styles.gasInfoRow}>
+                <Text style={styles.gasInfoLabel}>Gas Limit:</Text>
+                <Text style={styles.gasInfoValue}>{gasEstimate}</Text>
+              </View>
+              <View style={styles.gasInfoRow}>
+                <Text style={styles.gasInfoLabel}>Estimated Fee:</Text>
+                <Text style={styles.gasInfoValue}>{parseFloat(estimatedFee).toFixed(6)} {getChainConfig(selectedChain).nativeCurrency.symbol}</Text>
+              </View>
+            </View>
+          )}
 
           {/* Transfer Button */}
           <TouchableOpacity
@@ -522,5 +677,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter',
+  },
+  gasInfoContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  gasInfoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    fontFamily: 'Inter',
+    marginBottom: 12,
+  },
+  gasInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  gasInfoLabel: {
+    fontSize: 14,
+    color: '#666666',
+    fontFamily: 'Inter',
+  },
+  gasInfoValue: {
+    fontSize: 14,
+    color: '#ffffff',
+    fontFamily: 'Inter',
+    fontWeight: '500',
   },
 });

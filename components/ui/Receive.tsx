@@ -22,7 +22,7 @@ interface ReceiveProps {
 }
 
 export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
-  const { wallet, currentChain } = useWallet();
+  const { wallet, currentChain, switchChain, isLoading } = useWallet();
   const availableChains = getAvailableChains();
   const [selectedChain, setSelectedChain] = useState(currentChain || availableChains[0]);
   const [selectedToken, setSelectedToken] = useState<'native' | string>('native');
@@ -99,6 +99,20 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
     if (qrData) {
       await Clipboard.setStringAsync(qrData);
       Alert.alert('Copied!', 'QR code data copied to clipboard');
+    }
+  };
+
+  const handleChainSwitch = async (chainName: string) => {
+    if (chainName === selectedChain || isLoading) {
+      return; // Don't switch if already selected or if switching is in progress
+    }
+
+    try {
+      await switchChain(chainName);
+      setSelectedChain(chainName);
+    } catch (error) {
+      console.error('Error switching chain:', error);
+      Alert.alert('Error', 'Failed to switch chain. Please try again.');
     }
   };
 
@@ -195,13 +209,16 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
                     key={chain}
                     style={[
                       styles.chainButton,
-                      selectedChain === chain && styles.selectedChainButton
+                      selectedChain === chain && styles.selectedChainButton,
+                      isLoading && styles.chainButtonDisabled
                     ]}
-                    onPress={() => setSelectedChain(chain)}
+                    onPress={() => handleChainSwitch(chain)}
+                    disabled={isLoading}
                   >
                     <Text style={[
                       styles.chainButtonText,
-                      selectedChain === chain && styles.selectedChainButtonText
+                      selectedChain === chain && styles.selectedChainButtonText,
+                      isLoading && styles.chainButtonTextDisabled
                     ]}>
                       {getChainConfig(chain).name}
                     </Text>
@@ -469,6 +486,12 @@ const styles = StyleSheet.create({
   },
   selectedChainButtonText: {
     color: '#000000',
+  },
+  chainButtonDisabled: {
+    opacity: 0.5,
+  },
+  chainButtonTextDisabled: {
+    color: '#666666',
   },
   tokenScroll: {
     flexDirection: 'row',
