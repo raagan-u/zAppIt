@@ -23,13 +23,15 @@ export interface VoteParams {
   voteOption: number;
 }
 
+import contractConfig from '../config/contract.json';
+
 /**
- * Default contract configuration
+ * Contract configuration loaded from config file
  */
 export const DEFAULT_CONFIG: ContractConfig = {
-  contractAddress: '0x...', // TODO: Deploy contract and get address
-  rpcUrl: 'https://sepolia.infura.io/v3/YOUR_PROJECT_ID', // TODO: Add your Infura key
-  chainId: 11155111 // Sepolia testnet
+  contractAddress: contractConfig.contractAddress,
+  rpcUrl: contractConfig.rpcUrl,
+  chainId: contractConfig.chainId
 };
 
 /**

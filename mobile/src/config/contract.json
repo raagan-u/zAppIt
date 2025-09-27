@@ -1,0 +1,8 @@
+{
+  "network": "sepolia",
+  "verifierAddress": "0x0000000000000000000000000000000000000000",
+  "contractAddress": "0x0000000000000000000000000000000000000000",
+  "rpcUrl": "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+  "chainId": 11155111,
+  "deployedAt": "2024-01-01T00:00:00.000Z"
+}
