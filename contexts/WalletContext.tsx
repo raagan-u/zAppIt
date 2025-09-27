@@ -7,13 +7,16 @@ import React, {
     useEffect,
     useState,
 } from 'react';
+import { DEFAULT_CHAIN, getChainConfig } from '../constants/config';
 
 interface WalletContextType {
   wallet: ethers.Wallet | null;
   provider: ethers.JsonRpcProvider | null;
   isConnected: boolean;
-  connectWallet: (privateKey: string) => Promise<void>;
+  currentChain: string;
+  connectWallet: (privateKey: string, chainName?: string) => Promise<void>;
   disconnectWallet: () => Promise<void>;
+  switchChain: (chainName: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   clearError: () => void;
@@ -37,15 +40,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [wallet, setWallet] = useState<ethers.Wallet | null>(null);
   const [provider, setProvider] = useState<ethers.JsonRpcProvider | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [currentChain, setCurrentChain] = useState(DEFAULT_CHAIN);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Simple RPC URL for testing (Ethereum Sepolia testnet)
-  const getRpcUrl = (): string => {
-    const alchemyApiKey = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY;
-    return alchemyApiKey
-      ? `https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`
-      : 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161';
+  // Get RPC URL for a specific chain
+  const getRpcUrl = (chainName: string): string => {
+    const chainConfig = getChainConfig(chainName);
+    return chainConfig.rpcUrl;
   };
 
   // Load stored wallet on app start
@@ -54,13 +56,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       try {
         setError(null);
         const storedPrivateKey = await AsyncStorage.getItem('wallet_private_key');
+        const storedChain = await AsyncStorage.getItem('wallet_chain');
+        
         if (storedPrivateKey) {
-          const rpcUrl = getRpcUrl();
+          const chainName = storedChain || DEFAULT_CHAIN;
+          const rpcUrl = getRpcUrl(chainName);
           console.log('Loading stored wallet...');
           const provider = new ethers.JsonRpcProvider(rpcUrl);
           const wallet = new ethers.Wallet(storedPrivateKey, provider);
           setWallet(wallet);
           setProvider(provider);
+          setCurrentChain(chainName);
           setIsConnected(true);
           console.log('Wallet loaded successfully');
         }
@@ -73,12 +79,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     loadStoredWallet();
   }, []);
 
-  const connectWallet = async (privateKey: string) => {
+  const connectWallet = async (privateKey: string, chainName: string = currentChain) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const rpcUrl = getRpcUrl();
+      const rpcUrl = getRpcUrl(chainName);
       console.log('Connecting wallet...');
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const wallet = new ethers.Wallet(privateKey, provider);
@@ -89,10 +95,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       setWallet(wallet);
       setProvider(provider);
+      setCurrentChain(chainName);
       setIsConnected(true);
 
-      // Store the private key securely
+      // Store the private key and chain securely
       await AsyncStorage.setItem('wallet_private_key', privateKey);
+      await AsyncStorage.setItem('wallet_chain', chainName);
       console.log('Wallet connected and stored successfully');
     } catch (error) {
       console.error('Error connecting wallet:', error);
@@ -107,14 +115,45 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       console.log('Disconnecting wallet...');
       await AsyncStorage.removeItem('wallet_private_key');
+      await AsyncStorage.removeItem('wallet_chain');
       setWallet(null);
       setProvider(null);
+      setCurrentChain(DEFAULT_CHAIN);
       setIsConnected(false);
       setError(null);
       console.log('Wallet disconnected successfully');
     } catch (error) {
       console.error('Error disconnecting wallet:', error);
       throw error;
+    }
+  };
+
+  const switchChain = async (chainName: string) => {
+    if (!wallet) {
+      throw new Error('No wallet connected');
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const rpcUrl = getRpcUrl(chainName);
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const newWallet = new ethers.Wallet(wallet.privateKey, provider);
+
+      setProvider(provider);
+      setWallet(newWallet);
+      setCurrentChain(chainName);
+
+      // Update stored chain
+      await AsyncStorage.setItem('wallet_chain', chainName);
+      console.log('Chain switched to:', chainName);
+    } catch (error) {
+      console.error('Error switching chain:', error);
+      setError(error instanceof Error ? error.message : 'Failed to switch chain');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -126,8 +165,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     wallet,
     provider,
     isConnected,
+    currentChain,
     connectWallet,
     disconnectWallet,
+    switchChain,
     isLoading,
     error,
     clearError,
