@@ -1,0 +1,39 @@
+# Environment Variables Setup
+# Copy these variables to your .env file in the project root
+
+# Wallet Configuration
+EXPO_PUBLIC_PRIVATE_KEY=your_private_key_here
+
+# RPC URLs (optional - defaults will be used if not provided)
+EXPO_PUBLIC_ETHEREUM_RPC_URL=https://ethereum.drpc.org
+EXPO_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.drpc.org
+EXPO_PUBLIC_POLYGON_RPC_URL=https://polygon.drpc.org
+EXPO_PUBLIC_MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+EXPO_PUBLIC_ARBITRUM_RPC_URL=https://arbitrum.drpc.org
+EXPO_PUBLIC_OPTIMISM_RPC_URL=https://optimism.drpc.org
+EXPO_PUBLIC_BASE_RPC_URL=https://base.drpc.org
+
+# Default Chain (ethereum, sepolia, polygon, mumbai, arbitrum, optimism, base)
+EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
+
+# Instructions:
+# 1. Create a .env file in your project root
+# 2. Copy the above variables to your .env file
+# 3. Replace the placeholder values with your actual keys/URLs
+# 4. Make sure .env is in your .gitignore file
+# 5. RPC URLs are optional - the app will use public RPCs if not provided
+
+# Example with real values:
+# EXPO_PUBLIC_PRIVATE_KEY=0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+# EXPO_PUBLIC_ETHEREUM_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/your-api-key
+# EXPO_PUBLIC_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-api-key
+# EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
+
+# Available Chains:
+# - ethereum (Chain ID: 1)
+# - sepolia (Chain ID: 11155111) - Testnet
+# - polygon (Chain ID: 137)
+# - mumbai (Chain ID: 80001) - Testnet
+# - arbitrum (Chain ID: 42161)
+# - optimism (Chain ID: 10)
+# - base (Chain ID: 8453)
