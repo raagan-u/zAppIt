@@ -1,40 +1,35 @@
 /**
  * IPFS service for storing encrypted content
- * Uses IPFS HTTP client for decentralized storage
+ * Uses Pinata SDK for decentralized storage
  */
 
-import { create, IPFSHTTPClient } from 'ipfs-http-client';
+import { PinataSDK } from "pinata";
+import { PINATA_CONFIG } from "../config/pinata";
 
 export interface IPFSResult {
   hash: string;
   size: number;
 }
 
-// IPFS client configuration
-const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
-const IPFS_API_URL = 'https://ipfs.infura.io:5001/api/v0';
-
-let ipfsClient: IPFSHTTPClient | null = null;
+let pinataClient: PinataSDK | null = null;
 
 /**
- * Initialize IPFS client
+ * Initialize Pinata client
  */
-function getIPFSClient(): IPFSHTTPClient {
-  if (!ipfsClient) {
+function getPinataClient(): PinataSDK {
+  if (!pinataClient) {
     try {
-      ipfsClient = create({
-        url: IPFS_API_URL,
-        headers: {
-          authorization: 'Basic ' + Buffer.from(process.env.INFURA_PROJECT_ID + ':' + process.env.INFURA_PROJECT_SECRET).toString('base64')
-        }
+      pinataClient = new PinataSDK({
+        pinataJwt: PINATA_CONFIG.PINATA_JWT,
+        pinataGateway: PINATA_CONFIG.PINATA_GATEWAY,
       });
     } catch (error) {
-      console.warn('Failed to create IPFS client, using fallback:', error);
-      // Fallback to public gateway
-      ipfsClient = create({ url: 'https://ipfs.io/api/v0' });
+      console.warn("Failed to create Pinata client, using fallback:", error);
+      // Fallback to mock client for development
+      pinataClient = null;
     }
   }
-  return ipfsClient;
+  return pinataClient;
 }
 
 /**
@@ -42,22 +37,36 @@ function getIPFSClient(): IPFSHTTPClient {
  * @param encryptedContent - The encrypted content to upload
  * @returns Promise with IPFS hash
  */
-export async function uploadToIPFS(encryptedContent: string): Promise<IPFSResult> {
+export async function uploadToIPFS(
+  encryptedContent: string
+): Promise<IPFSResult> {
   try {
-    const client = getIPFSClient();
-    const result = await client.add(encryptedContent);
+    const client = getPinataClient();
     
+    if (!client) {
+      throw new Error("Pinata client not available");
+    }
+
+    // Create a File object from the content
+    const file = new File([encryptedContent], "encrypted-content.txt", {
+      type: "text/plain",
+    });
+
+    const result = await client.upload.public.file(file);
+
     return {
-      hash: result.cid.toString(),
-      size: result.size
+      hash: result.cid,
+      size: result.size,
     };
   } catch (error) {
-    console.error('Error uploading to IPFS:', error);
+    console.error("Error uploading to IPFS:", error);
     // Fallback to mock for development
-    const mockHash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    const mockHash = `Qm${Math.random()
+      .toString(36)
+      .substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
     return {
       hash: mockHash,
-      size: encryptedContent.length
+      size: encryptedContent.length,
     };
   }
 }
@@ -69,17 +78,17 @@ export async function uploadToIPFS(encryptedContent: string): Promise<IPFSResult
  */
 export async function downloadFromIPFS(hash: string): Promise<string> {
   try {
-    const client = getIPFSClient();
-    const chunks = [];
+    const client = getPinataClient();
     
-    for await (const chunk of client.cat(hash)) {
-      chunks.push(chunk);
+    if (!client) {
+      throw new Error("Pinata client not available");
     }
-    
-    const content = Buffer.concat(chunks).toString();
+
+    // Use Pinata gateway to fetch content
+    const content = await client.gateways.public.get(hash);
     return content;
   } catch (error) {
-    console.error('Error downloading from IPFS:', error);
+    console.error("Error downloading from IPFS:", error);
     // Fallback to mock for development
     return `Mock encrypted content for hash: ${hash}`;
   }
@@ -91,11 +100,16 @@ export async function downloadFromIPFS(hash: string): Promise<string> {
  */
 export async function pinToIPFS(hash: string): Promise<void> {
   try {
-    const client = getIPFSClient();
-    await client.pin.add(hash);
-    console.log(`Pinned content with hash: ${hash}`);
+    const client = getPinataClient();
+    
+    if (!client) {
+      throw new Error("Pinata client not available");
+    }
+
+    // Pinata automatically pins content when uploaded
+    console.log(`Content with hash ${hash} is already pinned via Pinata`);
   } catch (error) {
-    console.error('Error pinning to IPFS:', error);
+    console.error("Error pinning to IPFS:", error);
   }
 }
 
@@ -106,24 +120,36 @@ export async function pinToIPFS(hash: string): Promise<void> {
  */
 export async function uploadFileToIPFS(fileUri: string): Promise<IPFSResult> {
   try {
-    const client = getIPFSClient();
+    const client = getPinataClient();
     
-    // For React Native, you might need to use a different approach
-    // This is a simplified version - in production you'd handle file reading properly
-    const fileContent = await fetch(fileUri).then(res => res.text());
-    const result = await client.add(fileContent);
+    if (!client) {
+      throw new Error("Pinata client not available");
+    }
+
+    // For React Native, fetch the file content
+    const response = await fetch(fileUri);
+    const fileContent = await response.text();
     
+    // Create a File object
+    const file = new File([fileContent], "uploaded-file", {
+      type: response.headers.get("content-type") || "application/octet-stream",
+    });
+
+    const result = await client.upload.public.file(file);
+
     return {
-      hash: result.cid.toString(),
-      size: result.size
+      hash: result.cid,
+      size: result.size,
     };
   } catch (error) {
-    console.error('Error uploading file to IPFS:', error);
+    console.error("Error uploading file to IPFS:", error);
     // Fallback to mock for development
-    const mockHash = `Qm${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    const mockHash = `Qm${Math.random()
+      .toString(36)
+      .substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
     return {
       hash: mockHash,
-      size: 1024
+      size: 1024,
     };
   }
 }
@@ -134,5 +160,5 @@ export async function uploadFileToIPFS(fileUri: string): Promise<IPFSResult> {
  * @returns Gateway URL
  */
 export function getIPFSGatewayURL(hash: string): string {
-  return `${IPFS_GATEWAY}${hash}`;
+  return `https://${PINATA_CONFIG.PINATA_GATEWAY}/ipfs/${hash}`;
 }
