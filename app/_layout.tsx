@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { WalletProvider } from '../contexts/WalletContext';
-import '../global.css';
 
 export default function RootLayout() {
   return (

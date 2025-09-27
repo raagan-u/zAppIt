@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
     color: '#00ff88',
     fontFamily: 'Inter',
     backgroundColor: '#00ff88',
-    color: '#000000',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
