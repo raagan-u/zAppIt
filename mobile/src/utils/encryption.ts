@@ -83,3 +83,15 @@ export async function getCircleMembership(circleId: string): Promise<string | nu
   const key = `circle_${circleId}`;
   return await SecureStore.getItemAsync(key);
 }
+
+/**
+ * Generate a random secret for circle creation
+ */
+export function generateRandomSecret(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 32; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}

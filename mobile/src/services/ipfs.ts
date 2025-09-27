@@ -42,7 +42,7 @@ export async function uploadToIPFS(
 ): Promise<IPFSResult> {
   try {
     const client = getPinataClient();
-    
+
     if (!client) {
       throw new Error("Pinata client not available");
     }
@@ -79,7 +79,7 @@ export async function uploadToIPFS(
 export async function downloadFromIPFS(hash: string): Promise<string> {
   try {
     const client = getPinataClient();
-    
+
     if (!client) {
       throw new Error("Pinata client not available");
     }
@@ -101,7 +101,7 @@ export async function downloadFromIPFS(hash: string): Promise<string> {
 export async function pinToIPFS(hash: string): Promise<void> {
   try {
     const client = getPinataClient();
-    
+
     if (!client) {
       throw new Error("Pinata client not available");
     }
@@ -121,7 +121,7 @@ export async function pinToIPFS(hash: string): Promise<void> {
 export async function uploadFileToIPFS(fileUri: string): Promise<IPFSResult> {
   try {
     const client = getPinataClient();
-    
+
     if (!client) {
       throw new Error("Pinata client not available");
     }
@@ -129,7 +129,7 @@ export async function uploadFileToIPFS(fileUri: string): Promise<IPFSResult> {
     // For React Native, fetch the file content
     const response = await fetch(fileUri);
     const fileContent = await response.text();
-    
+
     // Create a File object
     const file = new File([fileContent], "uploaded-file", {
       type: response.headers.get("content-type") || "application/octet-stream",

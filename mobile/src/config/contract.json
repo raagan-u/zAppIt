@@ -1,8 +1,8 @@
 {
-  "network": "sepolia",
-  "verifierAddress": "0x0000000000000000000000000000000000000000",
-  "contractAddress": "0x0000000000000000000000000000000000000000",
-  "rpcUrl": "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
-  "chainId": 11155111,
-  "deployedAt": "2024-01-01T00:00:00.000Z"
+  "network": "local",
+  "verifierAddress": "0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519",
+  "contractAddress": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
+  "rpcUrl": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+  "chainId": 1,
+  "deployedAt": "2025-09-27T08:28:25.917Z"
 }
