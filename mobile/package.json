@@ -15,6 +15,7 @@
     "expo-crypto": "^15.0.7",
     "expo-secure-store": "^15.0.7",
     "expo-status-bar": "~3.0.8",
+    "ipfs-http-client": "^60.0.1",
     "mopro-react-native-package": "github:zkmopro/mopro-react-native-package",
     "react": "19.1.0",
     "react-native": "0.81.4",
