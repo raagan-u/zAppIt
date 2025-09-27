@@ -20,6 +20,7 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   const [currentChain, setCurrentChain] = useState(chainName);
   const [availableChains] = useState(getAvailableChains());
   const [showTokens, setShowTokens] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
 
   const loadBalance = async () => {
     if (!wallet || !isConnected) {
@@ -79,11 +80,11 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   };
 
   const handleSend = () => {
-      if (wallet) {
-        <Send />
-      } else {
-        Alert.alert('Wallet Not Connected', 'Please connect your wallet to send');
-      }
+    if (wallet) {
+      setShowSendModal(true);
+    } else {
+      Alert.alert('Wallet Not Connected', 'Please connect your wallet to send');
+    }
   };
 
   const handleReceive = () => {
@@ -232,6 +233,11 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
             <Text style={styles.actionButtonText}>Subscribe</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Send Modal */}
+        {showSendModal && (
+          <Send onClose={() => setShowSendModal(false)} />
+        )}
       </View>
     </View>
   );

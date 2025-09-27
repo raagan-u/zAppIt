@@ -48,7 +48,14 @@ export const getTokenBalance = async (
   try {
     console.log(`Fetching balance for ${tokenConfig.symbol} at ${tokenAddress} for wallet ${walletAddress}`);
     const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-    const balance = await contract.balanceOf(walletAddress);
+    
+    // Add timeout for token balance calls
+    const balance = await Promise.race([
+      contract.balanceOf(walletAddress),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      )
+    ]) as bigint;
     
     // Format balance based on token decimals
     const formattedBalance = ethers.formatUnits(balance, tokenConfig.decimals);
@@ -87,7 +94,13 @@ export const getNativeBalance = async (
   walletAddress: string
 ): Promise<string> => {
   try {
-    const balance = await provider.getBalance(walletAddress);
+    // Add timeout and retry logic
+    const balance = await Promise.race([
+      provider.getBalance(walletAddress),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      )
+    ]) as bigint;
     return ethers.formatEther(balance);
   } catch (error) {
     console.error('Error fetching native balance:', error);

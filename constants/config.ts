@@ -32,7 +32,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
     },
     tokens: [
       {
-        address: '0x6c3ea9036406852006290770BEdFcAbA0e23A0e8', // PayPal USD
+        address: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9', // PayPal USD
         name: 'PayPal USD',
         symbol: 'PAYPALUSD',
         decimals: 6,
@@ -42,7 +42,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
   polygon: {
     name: 'Polygon',
     chainId: 137,
-    rpcUrl: process.env.EXPO_PUBLIC_POLYGON_RPC_URL || 'https://polygon.drpc.org',
+    rpcUrl:  'https://rpc-amoy.polygon.technology/',
     blockExplorer: 'https://polygonscan.com',
     nativeCurrency: {
       name: 'MATIC',
