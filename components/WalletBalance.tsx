@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacit
 import { getAvailableChains, getChainConfig } from '../constants/config';
 import { useWallet } from '../contexts/WalletContext';
 import { getMultipleTokenBalances, getNativeBalance, TokenBalance } from '../utils/tokenUtils';
+import { Receive } from './ui/Receive';
 import { Send } from './ui/Send';
 
 interface WalletBalanceProps {
@@ -21,6 +22,7 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   const [availableChains] = useState(getAvailableChains());
   const [showTokens, setShowTokens] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
 
   const loadBalance = async () => {
     if (!wallet || !isConnected) {
@@ -88,7 +90,11 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   };
 
   const handleReceive = () => {
-    Alert.alert('Receive', 'Receive functionality will be implemented here');
+    if (isConnected && wallet) {
+      setShowReceiveModal(true);
+    } else {
+      Alert.alert('Wallet Not Connected', 'Please connect your wallet to receive');
+    }
   };
 
   const handleSubscribe = () => {
@@ -237,6 +243,11 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
         {/* Send Modal */}
         {showSendModal && (
           <Send onClose={() => setShowSendModal(false)} />
+        )}
+
+        {/* Receive Modal */}
+        {showReceiveModal && (
+          <Receive onClose={() => setShowReceiveModal(false)} />
         )}
       </View>
     </View>
