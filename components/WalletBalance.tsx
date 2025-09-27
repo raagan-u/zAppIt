@@ -1,8 +1,9 @@
 import { ethers } from 'ethers';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getAvailableChains, getChainConfig } from '../constants/config';
 import { useWallet } from '../contexts/WalletContext';
+import { getMultipleTokenBalances, getNativeBalance, TokenBalance } from '../utils/tokenUtils';
 
 interface WalletBalanceProps {
   chainName?: string;
@@ -12,14 +13,17 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   chainName = 'sepolia' 
 }) => {
   const { wallet, provider, isConnected } = useWallet();
-  const [balance, setBalance] = useState<string>('0');
+  const [nativeBalance, setNativeBalance] = useState<string>('0');
+  const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentChain, setCurrentChain] = useState(chainName);
   const [availableChains] = useState(getAvailableChains());
+  const [showTokens, setShowTokens] = useState(false);
 
   const loadBalance = async () => {
     if (!wallet || !isConnected) {
-      setBalance('0');
+      setNativeBalance('0');
+      setTokenBalances([]);
       return;
     }
 
@@ -29,17 +33,29 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
       
       // Create a new provider for the selected chain
       const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
-      const chainWallet = new ethers.Wallet(wallet.privateKey, chainProvider);
       
-      const balanceWei = await chainProvider.getBalance(wallet.address);
-      const balanceEth = ethers.formatEther(balanceWei);
+      // Load native balance
+      const nativeBal = await getNativeBalance(chainProvider, wallet.address);
+      setNativeBalance(parseFloat(nativeBal).toFixed(6));
       
-      // Format balance to show appropriate decimal places
-      const formattedBalance = parseFloat(balanceEth).toFixed(6);
-      setBalance(formattedBalance);
+      // Load token balances if tokens are configured for this chain
+      if (chainConfig.tokens && chainConfig.tokens.length > 0) {
+        console.log('Loading token balances for tokens:', chainConfig.tokens);
+        const tokenBals = await getMultipleTokenBalances(
+          chainProvider, 
+          wallet.address, 
+          chainConfig.tokens
+        );
+        console.log('Token balances loaded:', tokenBals);
+        setTokenBalances(tokenBals);
+      } else {
+        console.log('No tokens configured for chain:', currentChain);
+        setTokenBalances([]);
+      }
     } catch (error) {
       console.error('Error loading balance:', error);
-      setBalance('Error');
+      setNativeBalance('Error');
+      setTokenBalances([]);
       Alert.alert('Error', 'Failed to load balance for this chain');
     } finally {
       setIsLoading(false);
@@ -94,8 +110,61 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
           {isLoading ? (
             <ActivityIndicator size="large" color="#00ff88" />
           ) : (
-            <Text style={styles.balance}>
-              {balance} {chainConfig.nativeCurrency.symbol}
+            <View style={styles.balanceSection}>
+              <Text style={styles.balance}>
+                {nativeBalance} {chainConfig.nativeCurrency.symbol}
+              </Text>
+              <Text style={styles.balanceLabel}>Native Balance</Text>
+            </View>
+          )}
+        </View>
+
+        {(tokenBalances.length > 0 || (chainConfig.tokens && chainConfig.tokens.length > 0)) && (
+          <View style={styles.tokenSection}>
+            <TouchableOpacity 
+              style={styles.tokenToggle}
+              onPress={() => setShowTokens(!showTokens)}
+            >
+              <Text style={styles.tokenToggleText}>
+                {showTokens ? 'Hide' : 'Show'} Tokens ({tokenBalances.length || chainConfig.tokens?.length || 0})
+              </Text>
+            </TouchableOpacity>
+            
+            {showTokens && (
+              <ScrollView style={styles.tokenList} showsVerticalScrollIndicator={false}>
+                {tokenBalances.length > 0 ? (
+                  tokenBalances.map((tokenBalance, index) => (
+                    <View key={index} style={styles.tokenItem}>
+                      <View style={styles.tokenInfo}>
+                        <Text style={styles.tokenSymbol}>{tokenBalance.token.symbol}</Text>
+                        <Text style={styles.tokenName}>{tokenBalance.token.name}</Text>
+                      </View>
+                      <View style={styles.tokenBalance}>
+                        <Text style={styles.tokenBalanceText}>
+                          {tokenBalance.formattedBalance}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.noTokensContainer}>
+                    <Text style={styles.noTokensText}>No token balances loaded</Text>
+                    <Text style={styles.noTokensSubtext}>Check console for errors</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {/* Debug info - remove this later */}
+        <View style={styles.debugSection}>
+          <Text style={styles.debugText}>
+            Debug: Chain: {currentChain}, Tokens: {tokenBalances.length}
+          </Text>
+          {chainConfig.tokens && (
+            <Text style={styles.debugText}>
+              Configured tokens: {chainConfig.tokens.length}
             </Text>
           )}
         </View>
@@ -198,10 +267,105 @@ const styles = StyleSheet.create({
     minHeight: 60,
     justifyContent: 'center',
   },
+  balanceSection: {
+    alignItems: 'center',
+  },
   balance: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#ffffff',
+    fontFamily: 'Inter',
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: '#666666',
+    fontFamily: 'Inter',
+    marginTop: 4,
+  },
+  tokenSection: {
+    marginBottom: 20,
+  },
+  tokenToggle: {
+    backgroundColor: '#333333',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555555',
+  },
+  tokenToggleText: {
+    color: '#00ff88',
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Inter',
+  },
+  tokenList: {
+    maxHeight: 200,
+    marginTop: 12,
+  },
+  tokenItem: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  tokenInfo: {
+    flex: 1,
+  },
+  tokenSymbol: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    fontFamily: 'Inter',
+  },
+  tokenName: {
+    fontSize: 12,
+    color: '#666666',
+    fontFamily: 'Inter',
+    marginTop: 2,
+  },
+  tokenBalance: {
+    alignItems: 'flex-end',
+  },
+  tokenBalanceText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#00ff88',
+    fontFamily: 'Inter',
+  },
+  debugSection: {
+    backgroundColor: '#1a1a1a',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#666666',
+    fontFamily: 'Inter',
+    marginBottom: 2,
+  },
+  noTokensContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noTokensText: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontFamily: 'Inter',
+    marginBottom: 8,
+  },
+  noTokensSubtext: {
+    fontSize: 14,
+    color: '#666666',
     fontFamily: 'Inter',
   },
   chainInfo: {

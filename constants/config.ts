@@ -1,3 +1,11 @@
+export interface TokenConfig {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  logoURI?: string;
+}
+
 export interface ChainConfig {
   name: string;
   chainId: number;
@@ -8,6 +16,7 @@ export interface ChainConfig {
     symbol: string;
     decimals: number;
   };
+  tokens?: TokenConfig[];
 }
 
 export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
@@ -21,6 +30,14 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
       symbol: 'ETH',
       decimals: 18,
     },
+    tokens: [
+      {
+        address: '0x6c3ea9036406852006290770BEdFcAbA0e23A0e8', // PayPal USD
+        name: 'PayPal USD',
+        symbol: 'PAYPALUSD',
+        decimals: 6,
+      },
+    ],
   },
   polygon: {
     name: 'Polygon',
@@ -32,10 +49,18 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
       symbol: 'MATIC',
       decimals: 18,
     },
+    tokens: [
+      {
+        address: '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582', // USDC
+        name: 'USD Coin',
+        symbol: 'USDC',
+        decimals: 6,
+      }
+    ],
   },
 };
 
-export const DEFAULT_CHAIN = process.env.EXPO_PUBLIC_DEFAULT_CHAIN || 'ethereum';
+export const DEFAULT_CHAIN = process.env.EXPO_PUBLIC_DEFAULT_CHAIN || 'sepolia';
 
 export const getChainConfig = (chainName: string): ChainConfig => {
   const config = CHAIN_CONFIGS[chainName];

@@ -13,7 +13,7 @@ EXPO_PUBLIC_ARBITRUM_RPC_URL=https://arbitrum.drpc.org
 EXPO_PUBLIC_OPTIMISM_RPC_URL=https://optimism.drpc.org
 EXPO_PUBLIC_BASE_RPC_URL=https://base.drpc.org
 
-# Default Chain (ethereum, sepolia, polygon, mumbai, arbitrum, optimism, base)
+# Default Chain (sepolia, polygon)
 EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
 
 # Instructions:
@@ -30,10 +30,5 @@ EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
 # EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
 
 # Available Chains:
-# - ethereum (Chain ID: 1)
-# - sepolia (Chain ID: 11155111) - Testnet
-# - polygon (Chain ID: 137)
-# - mumbai (Chain ID: 80001) - Testnet
-# - arbitrum (Chain ID: 42161)
-# - optimism (Chain ID: 10)
-# - base (Chain ID: 8453)
+# - sepolia (Chain ID: 11155111) - Testnet with LINK, UNI tokens
+# - polygon (Chain ID: 137) - Mainnet with USDC, DAI, WMATIC tokens
