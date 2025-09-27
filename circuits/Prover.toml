@@ -1,0 +1,7 @@
+action_type = "0"
+circle_commitment = "1"
+circle_id = "3"
+content_hash = "4"
+nullifier = "2"
+secret = "1"
+vote_option = "0"

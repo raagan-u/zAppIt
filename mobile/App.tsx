@@ -1,31 +1,35 @@
-import React, { useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, SafeAreaView, TouchableOpacity } from 'react-native';
-import { CircleList } from './src/components/CircleList';
-import { Header } from './src/components/Header';
-import { DemoScreen } from './src/screens/DemoScreen';
-import { CreateCircleScreen } from './src/screens/CreateCircleScreen';
-import { JoinCircleScreen } from './src/screens/JoinCircleScreen';
+import React, { useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import {
+  StyleSheet,
+  Text,
+  View,
+  SafeAreaView,
+  TouchableOpacity,
+} from "react-native";
+import { Header } from "./src/components/Header";
+import { DemoScreen } from "./src/screens/DemoScreen";
+import { CreateCircleScreen } from "./src/screens/CreateCircleScreen";
+import { JoinCircleScreen } from "./src/screens/JoinCircleScreen";
+import { MyCirclesScreen } from "./src/screens/MyCirclesScreen";
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'demo' | 'create' | 'join'>('home');
+  const [currentScreen, setCurrentScreen] = useState<
+    "my-circles" | "create" | "join" | "demo"
+  >("my-circles");
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'demo':
-        return <DemoScreen />;
-      case 'create':
+      case "my-circles":
+        return <MyCirclesScreen />;
+      case "create":
         return <CreateCircleScreen />;
-      case 'join':
+      case "join":
         return <JoinCircleScreen />;
+      case "demo":
+        return <DemoScreen />;
       default:
-        return (
-          <View style={styles.content}>
-            <Text style={styles.title}>Anonymous ZK Reddit</Text>
-            <Text style={styles.subtitle}>Private circles with zero-knowledge proofs</Text>
-            <CircleList />
-          </View>
-        );
+        return <MyCirclesScreen />;
     }
   };
 
@@ -35,35 +39,58 @@ export default function App() {
       <Header />
       <View style={styles.tabBar}>
         <TouchableOpacity
-          style={[styles.tab, currentScreen === 'home' && styles.activeTab]}
-          onPress={() => setCurrentScreen('home')}
+          style={[
+            styles.tab,
+            currentScreen === "my-circles" && styles.activeTab,
+          ]}
+          onPress={() => setCurrentScreen("my-circles")}
         >
-          <Text style={[styles.tabText, currentScreen === 'home' && styles.activeTabText]}>
-            🏠 Home
+          <Text
+            style={[
+              styles.tabText,
+              currentScreen === "my-circles" && styles.activeTabText,
+            ]}
+          >
+            My Circles
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, currentScreen === 'create' && styles.activeTab]}
-          onPress={() => setCurrentScreen('create')}
+          style={[styles.tab, currentScreen === "create" && styles.activeTab]}
+          onPress={() => setCurrentScreen("create")}
         >
-          <Text style={[styles.tabText, currentScreen === 'create' && styles.activeTabText]}>
-            ➕ Create
+          <Text
+            style={[
+              styles.tabText,
+              currentScreen === "create" && styles.activeTabText,
+            ]}
+          >
+            Create
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, currentScreen === 'join' && styles.activeTab]}
-          onPress={() => setCurrentScreen('join')}
+          style={[styles.tab, currentScreen === "join" && styles.activeTab]}
+          onPress={() => setCurrentScreen("join")}
         >
-          <Text style={[styles.tabText, currentScreen === 'join' && styles.activeTabText]}>
-            🔐 Join
+          <Text
+            style={[
+              styles.tabText,
+              currentScreen === "join" && styles.activeTabText,
+            ]}
+          >
+            Join
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, currentScreen === 'demo' && styles.activeTab]}
-          onPress={() => setCurrentScreen('demo')}
+          style={[styles.tab, currentScreen === "demo" && styles.activeTab]}
+          onPress={() => setCurrentScreen("demo")}
         >
-          <Text style={[styles.tabText, currentScreen === 'demo' && styles.activeTabText]}>
-            🧪 Demo
+          <Text
+            style={[
+              styles.tabText,
+              currentScreen === "demo" && styles.activeTabText,
+            ]}
+          >
+            Demo
           </Text>
         </TouchableOpacity>
       </View>
@@ -75,45 +102,28 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#888888',
-    textAlign: 'center',
-    marginBottom: 30,
+    backgroundColor: "#1a1a1a",
   },
   tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
+    flexDirection: "row",
+    backgroundColor: "#2a2a2a",
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: "#333333",
   },
   tab: {
     flex: 1,
     padding: 15,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeTab: {
-    backgroundColor: '#333333',
+    backgroundColor: "#333333",
   },
   tabText: {
-    color: '#888888',
+    color: "#888888",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   activeTabText: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
 });

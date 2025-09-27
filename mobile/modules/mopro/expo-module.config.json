@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["MoproModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.mopro.MoproModule"]
+  }
+}

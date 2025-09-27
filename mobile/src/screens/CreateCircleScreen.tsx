@@ -1,6 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Switch } from 'react-native';
-import { generateRandomSecret, storeCircleMembership } from '../utils/encryption';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Switch,
+} from "react-native";
+import {
+  generateRandomSecret,
+  storeCircleMembership,
+  storeCircleInfo,
+} from "../utils/encryption";
 
 export interface Circle {
   id: string;
@@ -12,10 +25,10 @@ export interface Circle {
 }
 
 export function CreateCircleScreen() {
-  const [circleName, setCircleName] = useState('');
-  const [description, setDescription] = useState('');
+  const [circleName, setCircleName] = useState("");
+  const [description, setDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(true);
-  const [customSecret, setCustomSecret] = useState('');
+  const [customSecret, setCustomSecret] = useState("");
   const [useCustomSecret, setUseCustomSecret] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -26,12 +39,12 @@ export function CreateCircleScreen() {
 
   const handleCreateCircle = async () => {
     if (!circleName.trim()) {
-      Alert.alert('Error', 'Please enter a circle name');
+      Alert.alert("Error", "Please enter a circle name");
       return;
     }
 
     if (!customSecret.trim()) {
-      Alert.alert('Error', 'Please generate or enter a secret');
+      Alert.alert("Error", "Please generate or enter a secret");
       return;
     }
 
@@ -39,9 +52,22 @@ export function CreateCircleScreen() {
     try {
       // Generate circle ID
       const circleId = generateCircleId();
-      
+
       // Store circle membership locally
       await storeCircleMembership(circleId, customSecret);
+
+      // Store circle info
+      await storeCircleInfo(circleId, {
+        name: circleName.trim(),
+        description: description.trim(),
+        joinedAt: Date.now(),
+      });
+
+      console.log("Circle created and stored:", {
+        circleId,
+        name: circleName.trim(),
+        secret: customSecret,
+      });
 
       const circle: Circle = {
         id: circleId,
@@ -49,30 +75,30 @@ export function CreateCircleScreen() {
         description: description.trim(),
         secret: customSecret,
         isPrivate: isPrivate,
-        createdAt: Date.now()
+        createdAt: Date.now(),
       };
 
       // TODO: Store circle info locally
-      console.log('Circle created:', circle);
+      console.log("Circle created:", circle);
 
       Alert.alert(
-        'Circle Created! 🎉',
+        "Circle Created! 🎉",
         `Circle ID: ${circleId}\nSecret: ${customSecret}\n\nShare these with people you want to invite!`,
         [
           {
-            text: 'Copy Invite Link',
-            onPress: () => copyInviteLink(circleId, customSecret)
+            text: "Copy Invite Link",
+            onPress: () => copyInviteLink(circleId, customSecret),
           },
-          { text: 'OK' }
+          { text: "OK" },
         ]
       );
 
       // Reset form
-      setCircleName('');
-      setDescription('');
-      setCustomSecret('');
+      setCircleName("");
+      setDescription("");
+      setCustomSecret("");
     } catch (error) {
-      Alert.alert('Error', `Failed to create circle: ${error.message}`);
+      Alert.alert("Error", `Failed to create circle: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -81,18 +107,23 @@ export function CreateCircleScreen() {
   const copyInviteLink = (circleId: string, secret: string) => {
     const inviteLink = `anonreddit://join?circle=${circleId}&secret=${secret}`;
     // TODO: Implement actual clipboard copy
-    console.log('Invite link:', inviteLink);
-    Alert.alert('Invite Link', inviteLink);
+    console.log("Invite link:", inviteLink);
+    Alert.alert("Invite Link", inviteLink);
   };
 
   const generateCircleId = (): string => {
-    return `circle_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    // Generate a numeric circle ID for contract compatibility
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    return (timestamp + random).toString();
   };
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>🔒 Create New Circle</Text>
-      <Text style={styles.subtitle}>Set up a private community with secret-based access</Text>
+      <Text style={styles.subtitle}>
+        Set up a private community with secret-based access
+      </Text>
 
       <View style={styles.section}>
         <Text style={styles.label}>Circle Name *</Text>
@@ -122,15 +153,14 @@ export function CreateCircleScreen() {
           <Switch
             value={isPrivate}
             onValueChange={setIsPrivate}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
-            thumbColor={isPrivate ? '#ffffff' : '#f4f3f4'}
+            trackColor={{ false: "#767577", true: "#4CAF50" }}
+            thumbColor={isPrivate ? "#ffffff" : "#f4f3f4"}
           />
         </View>
         <Text style={styles.helpText}>
-          {isPrivate 
-            ? 'Only people with the secret can join' 
-            : 'Anyone can join this circle'
-          }
+          {isPrivate
+            ? "Only people with the secret can join"
+            : "Anyone can join this circle"}
         </Text>
       </View>
 
@@ -140,11 +170,11 @@ export function CreateCircleScreen() {
           <Switch
             value={useCustomSecret}
             onValueChange={setUseCustomSecret}
-            trackColor={{ false: '#767577', true: '#4CAF50' }}
-            thumbColor={useCustomSecret ? '#ffffff' : '#f4f3f4'}
+            trackColor={{ false: "#767577", true: "#4CAF50" }}
+            thumbColor={useCustomSecret ? "#ffffff" : "#f4f3f4"}
           />
         </View>
-        
+
         {useCustomSecret ? (
           <TextInput
             style={styles.input}
@@ -187,7 +217,7 @@ export function CreateCircleScreen() {
         disabled={loading}
       >
         <Text style={styles.buttonText}>
-          {loading ? 'Creating...' : '🚀 Create Circle'}
+          {loading ? "Creating..." : "🚀 Create Circle"}
         </Text>
       </TouchableOpacity>
     </ScrollView>
@@ -197,20 +227,20 @@ export function CreateCircleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#1a1a1a",
     padding: 20,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#ffffff",
+    textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#888888',
-    textAlign: 'center',
+    color: "#888888",
+    textAlign: "center",
     marginBottom: 30,
   },
   section: {
@@ -218,74 +248,74 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
+    color: "#ffffff",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: "#2a2a2a",
     borderRadius: 8,
     padding: 12,
-    color: '#ffffff',
+    color: "#ffffff",
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: "#333333",
   },
   textArea: {
     height: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   helpText: {
     fontSize: 14,
-    color: '#888888',
-    fontStyle: 'italic',
+    color: "#888888",
+    fontStyle: "italic",
   },
   secretSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   secretInput: {
     flex: 1,
   },
   generateButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
     paddingHorizontal: 15,
     paddingVertical: 12,
     borderRadius: 8,
   },
   generateButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+    color: "#ffffff",
+    fontWeight: "bold",
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontWeight: "bold",
+    color: "#ffffff",
     marginBottom: 15,
   },
   feature: {
-    color: '#4CAF50',
+    color: "#4CAF50",
     marginBottom: 8,
     fontSize: 14,
   },
   button: {
     padding: 15,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20,
   },
   createButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   buttonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+    color: "#ffffff",
+    fontWeight: "bold",
     fontSize: 16,
   },
 });

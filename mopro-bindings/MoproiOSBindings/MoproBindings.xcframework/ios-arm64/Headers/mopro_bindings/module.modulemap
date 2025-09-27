@@ -1,0 +1,4 @@
+module mopro_bindingsFFI {
+    header "mopro_bindingsFFI.h"
+    export *
+}

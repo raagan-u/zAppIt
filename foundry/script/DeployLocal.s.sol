@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {PrivateCircle} from "../src/PrivateCircle.sol";
-import {MockVerifier} from "../src/MockVerifier.sol";
+import {HonkVerifier} from "../src/Verifier.sol";
 
 contract DeployLocalScript is Script {
     function run() public {
@@ -13,9 +13,9 @@ contract DeployLocalScript is Script {
         console.log("Deploying to local network...");
         console.log("Deployer address:", msg.sender);
 
-        // Deploy mock verifier first
-        MockVerifier verifier = new MockVerifier();
-        console.log("MockVerifier deployed at:", address(verifier));
+        // Deploy real verifier first
+        HonkVerifier verifier = new HonkVerifier();
+        console.log("Verifier deployed at:", address(verifier));
 
         // Deploy PrivateCircle contract
         PrivateCircle privateCircle = new PrivateCircle(address(verifier));
@@ -23,7 +23,7 @@ contract DeployLocalScript is Script {
 
         console.log("Deployment completed successfully!");
         console.log("Contract addresses:");
-        console.log("- MockVerifier:", address(verifier));
+        console.log("- Verifier:", address(verifier));
         console.log("- PrivateCircle:", address(privateCircle));
 
         vm.stopBroadcast();

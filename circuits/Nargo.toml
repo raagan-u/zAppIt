@@ -1,7 +1,6 @@
 [package]
 name = "anon_circle"
-type = "lib"
-authors = ["Anonymous"]
-compiler_version = ">=0.18.0"
+type = "bin"
+authors = [""]
 
 [dependencies]

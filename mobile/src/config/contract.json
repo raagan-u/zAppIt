@@ -1,8 +1,8 @@
 {
   "network": "local",
-  "verifierAddress": "0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519",
-  "contractAddress": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496",
-  "rpcUrl": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
-  "chainId": 1,
+  "verifierAddress": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+  "contractAddress": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+  "rpcUrl": "http://10.131.243.24:8545",
+  "chainId": 31337,
   "deployedAt": "2025-09-27T08:28:25.917Z"
 }
