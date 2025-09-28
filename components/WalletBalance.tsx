@@ -194,8 +194,8 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
     return (
       <View style={[styles.disconnectedContainer, { backgroundColor }]}>
         <View style={[styles.disconnectedCard, { backgroundColor: surfaceColor, borderColor }]}>
-          <Ionicons name="wallet-outline" size={48} color={textSecondary} />
-          <Text style={[styles.disconnectedText, { color: textSecondary }]}>
+          <Ionicons name="wallet-outline" size={48} color="#2563EB" />
+          <Text style={[styles.disconnectedText, { color: textPrimary }]}>
             Connect your wallet to view balance
           </Text>
         </View>
@@ -460,25 +460,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   disconnectedCard: {
-    borderRadius: 16,
-    padding: 32,
+    borderRadius: 20,
+    padding: 40,
     alignItems: 'center',
     width: '100%',
-    maxWidth: 300,
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    maxWidth: 320,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   disconnectedText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 24,
+    marginTop: 20,
+    lineHeight: 26,
   },
   
   // Connected State
