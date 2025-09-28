@@ -1,15 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
 import { ethers } from 'ethers';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from 'react-native';
 import { getAvailableChains, getChainConfig } from '../../constants/config';
 import { useWallet } from '../../contexts/WalletContext';
@@ -18,29 +25,54 @@ import { NFC } from '../impls/NFC';
 import { PaymentInfo, QR } from '../impls/QR';
 
 interface SendProps {
+  isVisible: boolean;
   onClose: () => void;
+  nativeBalance: string;
+  tokenBalances: TokenBalance[];
 }
 
-export const Send: React.FC<SendProps> = ({ onClose }) => {
+type SendStep = 'form' | 'confirm' | 'sending' | 'success';
+
+export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, tokenBalances }) => {
   const { wallet, provider, currentChain } = useWallet();
+  const [step, setStep] = useState<SendStep>('form');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [selectedChain, setSelectedChain] = useState(currentChain);
   const [selectedToken, setSelectedToken] = useState<'native' | string>('native');
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
-  const [nativeBalance, setNativeBalance] = useState('0');
+  const [chainNativeBalance, setChainNativeBalance] = useState('0');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showNFC, setShowNFC] = useState(false);
-  const [gasEstimate, setGasEstimate] = useState<string>('');
-  const [estimatedFee, setEstimatedFee] = useState<string>('');
-  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [transactionHash, setTransactionHash] = useState('');
+  const [fadeAnim] = useState(new Animated.Value(0));
+  
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const backgroundColor = isDark ? '#0F0F0F' : '#FAFAFA';
+  const surfaceColor = isDark ? '#1A1A1A' : '#FFFFFF';
+  const textPrimary = isDark ? '#F9FAFB' : '#1F2937';
+  const textSecondary = isDark ? '#9CA3AF' : '#6B7280';
+  const borderColor = isDark ? '#374151' : '#E5E7EB';
 
   const availableChains = getAvailableChains();
 
   useEffect(() => {
-    loadBalances();
-  }, [selectedChain]);
+    if (isVisible) {
+      setStep('form');
+      setRecipientAddress('');
+      setAmount('');
+      setTransactionHash('');
+      loadBalances();
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isVisible, selectedChain]);
 
   const loadBalances = async () => {
     if (!wallet || !provider) return;
@@ -49,11 +81,11 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
       const chainConfig = getChainConfig(selectedChain);
       const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
       
-      // Load native balance
+      // Load native balance for selected chain
       const nativeBal = await getNativeBalance(chainProvider, wallet.address);
-      setNativeBalance(parseFloat(nativeBal).toFixed(6));
+      setChainNativeBalance(parseFloat(nativeBal).toFixed(6));
 
-      // Load token balances
+      // Load token balances if tokens are defined for this chain
       if (chainConfig.tokens && chainConfig.tokens.length > 0) {
         const tokenBals = await getMultipleTokenBalances(
           chainProvider,
@@ -75,7 +107,7 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
       return {
         symbol: chainConfig.nativeCurrency.symbol,
         decimals: chainConfig.nativeCurrency.decimals,
-        balance: nativeBalance,
+        balance: chainNativeBalance,
       };
     } else {
       const token = availableTokens.find(t => t.token.address === selectedToken);
@@ -87,112 +119,58 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
     }
   };
 
-  const estimateGasAndFee = async () => {
-    if (!wallet || !provider || !recipientAddress || !amount) {
-      setGasEstimate('');
-      setEstimatedFee('');
-      return;
-    }
-
-    try {
-      const chainConfig = getChainConfig(selectedChain);
-      const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
-      const chainWallet = new ethers.Wallet(wallet.privateKey, chainProvider);
-
-      let gasEstimate: bigint;
-      let gasPrice: bigint;
-
-      if (selectedToken === 'native') {
-        // Estimate gas for native transfer
-        gasEstimate = await chainProvider.estimateGas({
-          from: wallet.address,
-          to: recipientAddress,
-          value: ethers.parseEther(amount),
-        });
-        gasPrice = await chainProvider.getFeeData().then(feeData => feeData.gasPrice || BigInt(0));
-      } else {
-        // Estimate gas for ERC-20 transfer
-        const token = availableTokens.find(t => t.token.address === selectedToken);
-        if (!token) return;
-
-        const ERC20_ABI = [
-          'function transfer(address to, uint256 amount) returns (bool)',
-        ];
-
-        const contract = new ethers.Contract(token.token.address, ERC20_ABI, chainWallet);
-        const amountWei = ethers.parseUnits(amount, token.token.decimals);
-        
-        gasEstimate = await contract.transfer.estimateGas(recipientAddress, amountWei);
-        gasPrice = await chainProvider.getFeeData().then(feeData => feeData.gasPrice || BigInt(0));
-      }
-
-      const fee = gasEstimate * gasPrice;
-      setGasEstimate(gasEstimate.toString());
-      setEstimatedFee(ethers.formatEther(fee));
-    } catch (error) {
-      console.error('Gas estimation error:', error);
-      setGasEstimate('');
-      setEstimatedFee('');
-    }
-  };
-
-  // Estimate gas when inputs change
-  useEffect(() => {
-    const timeoutId = setTimeout(estimateGasAndFee, 500);
-    return () => clearTimeout(timeoutId);
-  }, [recipientAddress, amount, selectedToken, selectedChain]);
-
-  const handleTransfer = async () => {
-    if (!wallet || !provider) {
-      Alert.alert('Error', 'Wallet not connected');
-      return;
-    }
-
+  const validateForm = () => {
     if (!recipientAddress || !amount) {
       Alert.alert('Error', 'Please fill in all fields');
-      return;
+      return false;
     }
 
     if (!ethers.isAddress(recipientAddress)) {
       Alert.alert('Error', 'Invalid recipient address');
-      return;
+      return false;
     }
 
     const tokenInfo = getSelectedTokenInfo();
     if (!tokenInfo) {
       Alert.alert('Error', 'Invalid token selection');
-      return;
+      return false;
     }
 
     const amountFloat = parseFloat(amount);
     if (isNaN(amountFloat) || amountFloat <= 0) {
       Alert.alert('Error', 'Please enter a valid amount');
-      return;
+      return false;
     }
 
     if (amountFloat > parseFloat(tokenInfo.balance)) {
       Alert.alert('Error', 'Insufficient balance');
-      return;
+      return false;
     }
 
-    // Check if recipient is the same as sender
-    if (recipientAddress.toLowerCase() === wallet.address.toLowerCase()) {
-      Alert.alert('Error', 'Cannot send to yourself');
+    return true;
+  };
+
+  const handleContinue = () => {
+    if (validateForm()) {
+      setStep('confirm');
+    }
+  };
+
+  const handleConfirmTransfer = async () => {
+    if (!wallet || !provider) {
+      Alert.alert('Error', 'Wallet not connected');
       return;
     }
 
     try {
-      setIsLoading(true);
+      setStep('sending');
       const chainConfig = getChainConfig(selectedChain);
       const chainProvider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
       const chainWallet = new ethers.Wallet(wallet.privateKey, chainProvider);
 
-      let tx: any;
-      let transactionType: string;
-
+      let tx;
       if (selectedToken === 'native') {
         // Send native currency
-        transactionType = 'Native Transfer';
         tx = await chainWallet.sendTransaction({
           to: recipientAddress,
           value: ethers.parseEther(amount),
@@ -201,11 +179,10 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
         // Send ERC-20 token
         const token = availableTokens.find(t => t.token.address === selectedToken);
         if (!token) {
-          Alert.alert('Error', 'Token not found');
-          return;
+          throw new Error('Token not found');
         }
 
-        transactionType = 'ERC-20 Transfer';
+        let transactionType = 'ERC-20 Transfer';
         const ERC20_ABI = [
           'function transfer(address to, uint256 amount) returns (bool)',
           'function decimals() view returns (uint8)',
@@ -218,100 +195,16 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
         tx = await contract.transfer(recipientAddress, amountWei);
       }
 
-      // Store transaction details
-      const transactionDetails = {
-        hash: tx.hash,
-        type: transactionType,
-        from: wallet.address,
-        to: recipientAddress,
-        amount: amount,
-        token: tokenInfo.symbol,
-        chain: chainConfig.name,
-        timestamp: new Date().toISOString(),
-      };
-      setLastTransaction(transactionDetails);
-
-      // Wait for transaction confirmation
-      Alert.alert(
-        'Transaction Sent!', 
-        `Transaction hash: ${tx.hash}\n\nWaiting for confirmation...`,
-        [
-          {
-            text: 'View Details',
-            onPress: () => {
-              // You could navigate to a transaction details screen here
-              console.log('Transaction details:', transactionDetails);
-            }
-          },
-          {
-            text: 'OK',
-            onPress: () => {
-              // Reset form and close
-              setRecipientAddress('');
-              setAmount('');
-              setGasEstimate('');
-              setEstimatedFee('');
-              onClose();
-            }
-          }
-        ]
-      );
-
-      // Wait for transaction receipt
-      try {
-        const receipt = await tx.wait();
-        console.log('Transaction confirmed:', receipt);
-        
-        // Reload balances after successful transaction
-        await loadBalances();
-        
-        Alert.alert(
-          'Transaction Confirmed!',
-          `Transaction ${tx.hash} has been confirmed in block ${receipt.blockNumber}`
-        );
-      } catch (receiptError) {
-        console.error('Transaction failed:', receiptError);
-        Alert.alert(
-          'Transaction Failed',
-          `Transaction ${tx.hash} failed to confirm. Please check the transaction status.`
-        );
-      }
-
+      setTransactionHash(tx.hash);
+      setStep('success');
     } catch (error) {
       console.error('Transfer error:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = 'Unknown error occurred';
-      if (error instanceof Error) {
-        if (error.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient funds for gas fee';
-        } else if (error.message.includes('user rejected')) {
-          errorMessage = 'Transaction rejected by user';
-        } else if (error.message.includes('gas')) {
-          errorMessage = 'Gas estimation failed or insufficient gas';
-        } else if (error.message.includes('network')) {
-          errorMessage = 'Network error. Please check your connection';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      Alert.alert('Transfer Failed', errorMessage);
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', `Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setStep('confirm');
     }
   };
 
-  const handleQRScan = () => {
-    setShowQRScanner(true);
-  };
-
-  const handleNFC = () => {
-    setShowNFC(true);
-  };
-
   const handlePaymentInfoReceived = (paymentInfo: PaymentInfo) => {
-    // Auto-fill form with payment info from QR/NFC
     setRecipientAddress(paymentInfo.recipientAddress);
     
     if (paymentInfo.amount) {
@@ -319,7 +212,6 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
     }
     
     if (paymentInfo.chainId) {
-      // Find chain by chainId
       const chain = availableChains.find(chainName => {
         const config = getChainConfig(chainName);
         return config.chainId === paymentInfo.chainId;
@@ -334,158 +226,379 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
     }
   };
 
-  const tokenInfo = getSelectedTokenInfo();
+  const handleClose = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
 
-  return (
-    <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Send</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
+  const renderHeader = () => (
+    <View style={[styles.header, { backgroundColor: surfaceColor, borderBottomColor: borderColor }]}>
+      <View style={styles.headerContent}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={step === 'form' ? handleClose : () => setStep('form')}
+        >
+          <Ionicons name="arrow-back" size={24} color={textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: textPrimary }]}>
+          {step === 'form' ? 'Send' : step === 'confirm' ? 'Confirm' : step === 'sending' ? 'Sending' : 'Success'}
+        </Text>
+        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+          <Ionicons name="close" size={24} color={textSecondary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderForm = () => (
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      {/* Recipient Section */}
+      <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="person-outline" size={20} color="#2563EB" />
+          <Text style={[styles.sectionTitle, { color: textPrimary }]}>Recipient</Text>
+        </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: textSecondary }]}>Wallet Address</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.textInput, { 
+                backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                borderColor,
+                color: textPrimary 
+              }]}
+              placeholder="0x..."
+              placeholderTextColor={textSecondary}
+              value={recipientAddress}
+              onChangeText={setRecipientAddress}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity 
+              style={[styles.scanButton, { backgroundColor: '#2563EB' }]}
+              onPress={() => setShowQRScanner(true)}
+            >
+              <Ionicons name="qr-code" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Asset Section */}
+      <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="layers-outline" size={20} color="#10B981" />
+          <Text style={[styles.sectionTitle, { color: textPrimary }]}>Asset</Text>
         </View>
 
-        <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-          {/* Recipient Address */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Recipient Address</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="0x..."
-                placeholderTextColor="#666666"
-                value={recipientAddress}
-                onChangeText={setRecipientAddress}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity style={styles.qrButton} onPress={handleQRScan}>
-                <Text style={styles.qrButtonText}>QR</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Chain Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Chain</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainScroll}>
-              {availableChains.map((chain) => (
+        {/* Chain Selection */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: textSecondary }]}>Network</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
+            {availableChains.map((chain) => {
+              const config = getChainConfig(chain);
+              const isActive = selectedChain === chain;
+              
+              return (
                 <TouchableOpacity
                   key={chain}
                   style={[
-                    styles.chainButton,
-                    selectedChain === chain && styles.selectedChainButton
+                    styles.optionCard,
+                    { 
+                      backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                      borderColor: isActive ? '#2563EB' : borderColor,
+                      borderWidth: isActive ? 2 : 1
+                    }
                   ]}
                   onPress={() => setSelectedChain(chain)}
                 >
-                  <Text style={[
-                    styles.chainButtonText,
-                    selectedChain === chain && styles.selectedChainButtonText
+                  <View style={[
+                    styles.optionIcon,
+                    { backgroundColor: isActive ? '#2563EB' : isDark ? '#374151' : '#E5E7EB' }
                   ]}>
-                    {getChainConfig(chain).name}
+                    <Text style={[
+                      styles.optionIconText,
+                      { color: isActive ? '#FFFFFF' : textSecondary }
+                    ]}>
+                      {config.name.charAt(0)}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.optionText,
+                    { color: isActive ? '#2563EB' : textPrimary }
+                  ]}>
+                    {config.name}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-          {/* Token Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Token</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tokenScroll}>
-              <TouchableOpacity
-                style={[
-                  styles.tokenButton,
-                  selectedToken === 'native' && styles.selectedTokenButton
-                ]}
-                onPress={() => setSelectedToken('native')}
-              >
+        {/* Token Selection */}
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: textSecondary }]}>Token</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionsScroll}>
+            {/* Native Token */}
+            <TouchableOpacity
+              style={[
+                styles.tokenCard,
+                { 
+                  backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                  borderColor: selectedToken === 'native' ? '#10B981' : borderColor,
+                  borderWidth: selectedToken === 'native' ? 2 : 1
+                }
+              ]}
+              onPress={() => setSelectedToken('native')}
+            >
+              <View style={[
+                styles.tokenIcon,
+                { backgroundColor: selectedToken === 'native' ? '#10B981' : isDark ? '#374151' : '#E5E7EB' }
+              ]}>
                 <Text style={[
-                  styles.tokenButtonText,
-                  selectedToken === 'native' && styles.selectedTokenButtonText
+                  styles.tokenIconText,
+                  { color: selectedToken === 'native' ? '#FFFFFF' : textSecondary }
+                ]}>
+                  {getChainConfig(selectedChain).nativeCurrency.symbol.charAt(0)}
+                </Text>
+              </View>
+              <View style={styles.tokenInfo}>
+                <Text style={[
+                  styles.tokenSymbol,
+                  { color: selectedToken === 'native' ? '#10B981' : textPrimary }
                 ]}>
                   {getChainConfig(selectedChain).nativeCurrency.symbol}
                 </Text>
-                <Text style={styles.tokenBalance}>
-                  {nativeBalance}
+                <Text style={[styles.tokenBalance, { color: textSecondary }]}>
+                  {chainNativeBalance}
                 </Text>
-              </TouchableOpacity>
-              
-              {availableTokens.map((token) => (
-                <TouchableOpacity
-                  key={token.token.address}
-                  style={[
-                    styles.tokenButton,
-                    selectedToken === token.token.address && styles.selectedTokenButton
-                  ]}
-                  onPress={() => setSelectedToken(token.token.address)}
-                >
+              </View>
+            </TouchableOpacity>
+            
+            {/* ERC-20 Tokens */}
+            {availableTokens.map((token) => (
+              <TouchableOpacity
+                key={token.token.address}
+                style={[
+                  styles.tokenCard,
+                  { 
+                    backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                    borderColor: selectedToken === token.token.address ? '#10B981' : borderColor,
+                    borderWidth: selectedToken === token.token.address ? 2 : 1
+                  }
+                ]}
+                onPress={() => setSelectedToken(token.token.address)}
+              >
+                <View style={[
+                  styles.tokenIcon,
+                  { backgroundColor: selectedToken === token.token.address ? '#10B981' : isDark ? '#374151' : '#E5E7EB' }
+                ]}>
                   <Text style={[
-                    styles.tokenButtonText,
-                    selectedToken === token.token.address && styles.selectedTokenButtonText
+                    styles.tokenIconText,
+                    { color: selectedToken === token.token.address ? '#FFFFFF' : textSecondary }
+                  ]}>
+                    {token.token.symbol.charAt(0)}
+                  </Text>
+                </View>
+                <View style={styles.tokenInfo}>
+                  <Text style={[
+                    styles.tokenSymbol,
+                    { color: selectedToken === token.token.address ? '#10B981' : textPrimary }
                   ]}>
                     {token.token.symbol}
                   </Text>
-                  <Text style={styles.tokenBalance}>
+                  <Text style={[styles.tokenBalance, { color: textSecondary }]}>
                     {token.formattedBalance}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
 
-          {/* Amount */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Amount</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="0.0"
-              placeholderTextColor="#666666"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-            />
-            {tokenInfo && (
-              <Text style={styles.balanceText}>
-                Balance: {tokenInfo.balance} {tokenInfo.symbol}
-              </Text>
-            )}
-          </View>
-
-          {/* Gas Estimation */}
-          {gasEstimate && estimatedFee && (
-            <View style={styles.gasInfoContainer}>
-              <Text style={styles.gasInfoTitle}>Transaction Fee</Text>
-              <View style={styles.gasInfoRow}>
-                <Text style={styles.gasInfoLabel}>Gas Limit:</Text>
-                <Text style={styles.gasInfoValue}>{gasEstimate}</Text>
-              </View>
-              <View style={styles.gasInfoRow}>
-                <Text style={styles.gasInfoLabel}>Estimated Fee:</Text>
-                <Text style={styles.gasInfoValue}>{parseFloat(estimatedFee).toFixed(6)} {getChainConfig(selectedChain).nativeCurrency.symbol}</Text>
-              </View>
-            </View>
-          )}
-
-          {/* Transfer Button */}
-          <TouchableOpacity
-            style={[styles.transferButton, isLoading && styles.disabledButton]}
-            onPress={handleTransfer}
-            disabled={isLoading}
+      {/* Amount Section */}
+      <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="calculator-outline" size={20} color="#F59E0B" />
+          <Text style={[styles.sectionTitle, { color: textPrimary }]}>Amount</Text>
+        </View>
+        
+        <View style={styles.amountContainer}>
+          <TextInput
+            style={[styles.amountInput, { color: textPrimary }]}
+            placeholder="0.0"
+            placeholderTextColor={textSecondary}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity 
+            style={[styles.maxButton, { backgroundColor: '#F59E0B' }]}
+            onPress={() => {
+              const tokenInfo = getSelectedTokenInfo();
+              if (tokenInfo) {
+                setAmount(tokenInfo.balance);
+              }
+            }}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#000000" />
-            ) : (
-              <Text style={styles.transferButtonText}>Transfer</Text>
-            )}
+            <Text style={styles.maxButtonText}>MAX</Text>
           </TouchableOpacity>
+        </View>
+        
+        {(() => {
+          const tokenInfo = getSelectedTokenInfo();
+          return tokenInfo && (
+            <Text style={[styles.balanceText, { color: textSecondary }]}>
+              Available: {tokenInfo.balance} {tokenInfo.symbol}
+            </Text>
+          );
+        })()}
+      </View>
 
-          {/* NFC Button */}
-          <TouchableOpacity style={styles.nfcButton} onPress={handleNFC}>
-            <Text style={styles.nfcButtonText}>📱 NFC Transfer</Text>
+      {/* Continue Button */}
+      <TouchableOpacity 
+        style={[styles.primaryButton, { backgroundColor: '#2563EB' }]}
+        onPress={handleContinue}
+      >
+        <Text style={styles.primaryButtonText}>Continue</Text>
+        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderConfirm = () => {
+    const tokenInfo = getSelectedTokenInfo();
+    const chainConfig = getChainConfig(selectedChain);
+    
+    return (
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.confirmCard, { backgroundColor: surfaceColor, borderColor }]}>
+          <View style={styles.confirmHeader}>
+            <View style={[styles.confirmIcon, { backgroundColor: '#2563EB' }]}>
+              <Ionicons name="send" size={32} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.confirmTitle, { color: textPrimary }]}>
+              Confirm Transaction
+            </Text>
+            <Text style={[styles.confirmSubtitle, { color: textSecondary }]}>
+              Please review the details before sending
+            </Text>
+          </View>
+
+          <View style={styles.confirmDetails}>
+            <View style={styles.confirmRow}>
+              <Text style={[styles.confirmLabel, { color: textSecondary }]}>To</Text>
+              <Text style={[styles.confirmValue, { color: textPrimary }]} numberOfLines={1}>
+                {recipientAddress}
+              </Text>
+            </View>
+            <View style={styles.confirmRow}>
+              <Text style={[styles.confirmLabel, { color: textSecondary }]}>Amount</Text>
+              <Text style={[styles.confirmValue, { color: textPrimary }]}>
+                {amount} {tokenInfo?.symbol}
+              </Text>
+            </View>
+            <View style={styles.confirmRow}>
+              <Text style={[styles.confirmLabel, { color: textSecondary }]}>Network</Text>
+              <Text style={[styles.confirmValue, { color: textPrimary }]}>
+                {chainConfig.name}
+              </Text>
+            </View>
+            <View style={styles.confirmRow}>
+              <Text style={[styles.confirmLabel, { color: textSecondary }]}>Gas Fee</Text>
+              <Text style={[styles.confirmValue, { color: textSecondary }]}>
+                ~0.001 {chainConfig.nativeCurrency.symbol}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.primaryButton, { backgroundColor: '#2563EB' }]}
+            onPress={handleConfirmTransfer}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>Send Transaction</Text>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderSending = () => (
+    <View style={styles.centerContainer}>
+      <View style={[styles.loadingCard, { backgroundColor: surfaceColor }]}>
+        <View style={[styles.loadingIcon, { backgroundColor: '#2563EB' }]}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+        <Text style={[styles.loadingTitle, { color: textPrimary }]}>
+          Sending Transaction
+        </Text>
+        <Text style={[styles.loadingText, { color: textSecondary }]}>
+          Please wait while your transaction is being processed...
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderSuccess = () => (
+    <View style={styles.centerContainer}>
+      <View style={[styles.successCard, { backgroundColor: surfaceColor, borderColor }]}>
+        <View style={[styles.successIcon, { backgroundColor: '#10B981' }]}>
+          <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+        </View>
+        <Text style={[styles.successTitle, { color: textPrimary }]}>
+          Transaction Sent!
+        </Text>
+        <Text style={[styles.successText, { color: textSecondary }]}>
+          Your transaction has been successfully submitted to the network
+        </Text>
+
+        <View style={styles.transactionInfo}>
+          <View style={styles.transactionRow}>
+            <Text style={[styles.transactionLabel, { color: textSecondary }]}>Hash</Text>
+            <Text style={[styles.transactionValue, { color: '#2563EB' }]} numberOfLines={1}>
+              {transactionHash}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
+          onPress={handleClose}
+        >
+          <Text style={styles.primaryButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  if (!isVisible) return null;
+
+  return (
+    <Modal visible={isVisible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
+        
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {renderHeader()}
+          
+          <KeyboardAvoidingView 
+            style={styles.keyboardView}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            {step === 'form' && renderForm()}
+            {step === 'confirm' && renderConfirm()}
+            {step === 'sending' && renderSending()}
+            {step === 'success' && renderSuccess()}
+          </KeyboardAvoidingView>
+        </Animated.View>
 
         {/* QR Scanner Modal */}
         {showQRScanner && (
@@ -502,7 +615,7 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
             onClose={() => setShowNFC(false)}
           />
         )}
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
@@ -510,203 +623,366 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  content: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    paddingHorizontal: 24,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    fontFamily: 'Inter',
+  
+  // Header
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#333333',
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  form: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     flex: 1,
+    textAlign: 'center',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // Scroll View
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 20,
+  },
+  
+  // Sections
+  section: {
+    borderRadius: 16,
     padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  
+  // Input Groups
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  label: {
-    fontSize: 16,
+  inputLabel: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
     marginBottom: 8,
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  input: {
+  textInput: {
     flex: 1,
-    backgroundColor: '#111111',
     borderWidth: 1,
-    borderColor: '#333333',
     borderRadius: 12,
     padding: 16,
-    color: '#ffffff',
     fontSize: 16,
-    fontFamily: 'Inter',
   },
-  qrButton: {
-    backgroundColor: '#00ff88',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  scanButton: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    minWidth: 60,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  qrButtonText: {
-    color: '#000000',
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: 'Inter',
+  
+  // Options
+  optionsScroll: {
+    paddingRight: 20,
   },
-  chainScroll: {
-    flexDirection: 'row',
-  },
-  chainButton: {
-    backgroundColor: '#111111',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#333333',
-  },
-  selectedChainButton: {
-    backgroundColor: '#00ff88',
-    borderColor: '#00ff88',
-  },
-  chainButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter',
-  },
-  selectedChainButtonText: {
-    color: '#000000',
-  },
-  tokenScroll: {
-    flexDirection: 'row',
-  },
-  tokenButton: {
-    backgroundColor: '#111111',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#333333',
+  optionCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 12,
     alignItems: 'center',
     minWidth: 80,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  selectedTokenButton: {
-    backgroundColor: '#00ff88',
-    borderColor: '#00ff88',
+  optionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  tokenButtonText: {
-    color: '#ffffff',
+  optionIconText: {
     fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter',
+    fontWeight: '700',
   },
-  selectedTokenButtonText: {
-    color: '#000000',
+  optionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
+  // Token Cards
+  tokenCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 12,
+    minWidth: 120,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tokenIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  tokenIconText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tokenInfo: {
+    alignItems: 'center',
+  },
+  tokenSymbol: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   tokenBalance: {
     fontSize: 12,
-    color: '#666666',
-    fontFamily: 'Inter',
-    marginTop: 2,
+  },
+  
+  // Amount
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(37, 99, 235, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.2)',
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  maxButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  maxButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   balanceText: {
     fontSize: 14,
-    color: '#666666',
-    fontFamily: 'Inter',
     marginTop: 8,
   },
-  transferButton: {
-    backgroundColor: '#00ff88',
+  
+  // Primary Button
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 16,
+    gap: 8,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  transferButtonText: {
-    color: '#000000',
-    fontSize: 18,
-    fontWeight: '600',
-    fontFamily: 'Inter',
-  },
-  nfcButton: {
-    backgroundColor: '#333333',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#555555',
-  },
-  nfcButtonText: {
-    color: '#ffffff',
+  primaryButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Inter',
   },
-  gasInfoContainer: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+  
+  // Confirm
+  confirmCard: {
+    borderRadius: 16,
+    padding: 24,
     borderWidth: 1,
-    borderColor: '#333333',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  gasInfoTitle: {
+  confirmHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  confirmIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmSubtitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 24,
   },
-  gasInfoRow: {
+  confirmDetails: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  confirmRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  confirmLabel: {
+    fontSize: 16,
+  },
+  confirmValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  
+  // Loading
+  loadingCard: {
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  loadingIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 8,
+    textAlign: 'center',
   },
-  gasInfoLabel: {
-    fontSize: 14,
-    color: '#666666',
-    fontFamily: 'Inter',
+  loadingText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
-  gasInfoValue: {
+  
+  // Success
+  successCard: {
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 350,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  successIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  transactionInfo: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  transactionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  transactionLabel: {
     fontSize: 14,
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    fontWeight: '500',
+  },
+  transactionValue: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    flex: 1,
+    textAlign: 'right',
   },
 });

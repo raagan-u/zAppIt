@@ -1,40 +1,59 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ethers } from 'ethers';
 import * as Clipboard from 'expo-clipboard';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAvailableChains, getChainConfig } from '../../constants/config';
 import { useWallet } from '../../contexts/WalletContext';
 
 interface ReceiveProps {
+  isVisible: boolean;
   onClose: () => void;
+  address: string;
 }
 
-export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
-  const { wallet, currentChain, switchChain, isLoading } = useWallet();
+export const Receive: React.FC<ReceiveProps> = ({ isVisible, onClose, address }) => {
+  const { currentChain } = useWallet();
   const availableChains = getAvailableChains();
   const [selectedChain, setSelectedChain] = useState(currentChain || availableChains[0]);
   const [selectedToken, setSelectedToken] = useState<'native' | string>('native');
   const [amount, setAmount] = useState('');
   const [qrData, setQrData] = useState('');
-  const [showQRModal, setShowQRModal] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const backgroundColor = isDark ? '#0F0F0F' : '#FAFAFA';
+  const surfaceColor = isDark ? '#1A1A1A' : '#FFFFFF';
+  const textPrimary = isDark ? '#F9FAFB' : '#1F2937';
+  const textSecondary = isDark ? '#9CA3AF' : '#6B7280';
+  const borderColor = isDark ? '#374151' : '#E5E7EB';
 
   useEffect(() => {
-    generateQRData();
-  }, [selectedChain, selectedToken, amount, wallet]);
+    if (isVisible) {
+      generateQRData();
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isVisible, selectedChain, selectedToken, amount, address]);
 
-  // Update selected chain when currentChain changes
   useEffect(() => {
     if (currentChain && availableChains.includes(currentChain)) {
       setSelectedChain(currentChain);
@@ -42,17 +61,16 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
   }, [currentChain, availableChains]);
 
   const generateQRData = () => {
-    if (!wallet || !selectedChain) {
-      console.log('Cannot generate QR: wallet or chain missing', { wallet: !!wallet, selectedChain });
+    if (!address || !selectedChain) {
+      console.log('Cannot generate QR: address or chain missing');
       return;
     }
 
     try {
       const chainConfig = getChainConfig(selectedChain);
       
-      // Create comprehensive payment info
       const paymentInfo = {
-        address: wallet.address,
+        address: address,
         chainId: chainConfig.chainId,
         chainName: chainConfig.name,
         tokenAddress: selectedToken === 'native' ? 'native' : selectedToken,
@@ -63,34 +81,18 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
         timestamp: Date.now(),
       };
 
-      // Generate QR data in multiple formats
-      const qrFormats = {
-        // Simple address format
-        simple: wallet.address,
-        
-        // JSON format with all payment info
-        json: JSON.stringify(paymentInfo),
-        
-        // EIP-681 format for Ethereum payments
-        eip681: amount && amount !== '' && !isNaN(parseFloat(amount))
-          ? `ethereum:${wallet.address}@${chainConfig.chainId}/transfer?uint256=${ethers.parseEther(amount).toString()}`
-          : `ethereum:${wallet.address}@${chainConfig.chainId}`,
-      };
-
-      // Use JSON format as default (most comprehensive)
-      const qrDataToSet = qrFormats.json;
-      console.log('Generated QR data:', qrDataToSet);
+      // Use comprehensive JSON format
+      const qrDataToSet = JSON.stringify(paymentInfo);
       setQrData(qrDataToSet);
     } catch (error) {
       console.error('Error generating QR data:', error);
-      // Fallback to simple address
-      setQrData(wallet.address);
+      setQrData(address);
     }
   };
 
   const copyAddress = async () => {
-    if (wallet?.address) {
-      await Clipboard.setStringAsync(wallet.address);
+    if (address) {
+      await Clipboard.setStringAsync(address);
       Alert.alert('Copied!', 'Wallet address copied to clipboard');
     }
   };
@@ -98,226 +100,333 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
   const copyQRData = async () => {
     if (qrData) {
       await Clipboard.setStringAsync(qrData);
-      Alert.alert('Copied!', 'QR code data copied to clipboard');
+      Alert.alert('Copied!', 'Payment information copied to clipboard');
     }
   };
 
-  const handleChainSwitch = async (chainName: string) => {
-    if (chainName === selectedChain || isLoading) {
-      return; // Don't switch if already selected or if switching is in progress
-    }
-
-    try {
-      await switchChain(chainName);
-      setSelectedChain(chainName);
-    } catch (error) {
-      console.error('Error switching chain:', error);
-      Alert.alert('Error', 'Failed to switch chain. Please try again.');
-    }
-  };
-
-  const formatAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const formatAddress = (addr: string) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   const getTokenSymbol = () => {
     if (selectedToken === 'native') {
       return getChainConfig(selectedChain).nativeCurrency.symbol;
     }
-    // In a real app, you'd get this from token config
     return 'TOKEN';
   };
 
-  if (!wallet) {
+  const handleClose = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
+
+  if (!isVisible) return null;
+
+  if (!address) {
     return (
-      <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Receive</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={18} color="#ffffff" />
-            </TouchableOpacity>
+      <Modal visible={isVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={[styles.container, { backgroundColor }]}>
+          <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
+          
+          <View style={styles.centerContainer}>
+            <View style={[styles.errorCard, { backgroundColor: surfaceColor, borderColor }]}>
+              <Ionicons name="wallet-outline" size={48} color={textSecondary} />
+              <Text style={[styles.errorTitle, { color: textPrimary }]}>
+                No Wallet Connected
+              </Text>
+              <Text style={[styles.errorText, { color: textSecondary }]}>
+                Please connect your wallet first to generate receive QR codes
+              </Text>
+              <TouchableOpacity 
+                style={[styles.primaryButton, { backgroundColor: '#2563EB' }]}
+                onPress={handleClose}
+              >
+                <Text style={styles.primaryButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.errorContainer}>
-            <Ionicons name="wallet-outline" size={64} color="#666666" />
-            <Text style={styles.errorTitle}>No Wallet Connected</Text>
-            <Text style={styles.errorText}>
-              Please connect your wallet first to generate receive QR codes
-            </Text>
-          </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     );
   }
 
   return (
-    <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Receive</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={18} color="#ffffff" />
-            </TouchableOpacity>
+    <Modal visible={isVisible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={[styles.container, { backgroundColor }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
+        
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+          {/* Header */}
+          <View style={[styles.header, { backgroundColor: surfaceColor, borderBottomColor: borderColor }]}>
+            <View style={styles.headerContent}>
+              <View style={{ width: 40 }} />
+              <Text style={[styles.headerTitle, { color: textPrimary }]}>Receive</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <Ionicons name="close" size={24} color={textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* QR Code Display */}
-            <View style={styles.qrContainer}>
-              <View style={styles.qrCard}>
-                {qrData ? (
-                  <QRCode 
-                    value={qrData} 
-                    size={200} 
-                    color="#00ff88" 
-                    backgroundColor="white"
-                  />
-                ) : (
-                  <View style={styles.qrPlaceholder}>
-                    <Ionicons name="qr-code-outline" size={64} color="#666666" />
-                    <Text style={styles.qrPlaceholderText}>Generating QR Code...</Text>
-                  </View>
-                )}
-              </View>
-              
-              <View style={styles.qrInfo}>
-                <Text style={styles.qrTitle}>Payment QR Code</Text>
-                <Text style={styles.qrSubtitle}>
-                  {qrData ? 'Contains wallet address and payment details' : 'Loading payment information...'}
-                </Text>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* QR Code Section */}
+            <View style={[styles.qrSection, { backgroundColor: surfaceColor, borderColor }]}>
+              <View style={styles.qrContainer}>
+                <View style={styles.qrCard}>
+                  {qrData ? (
+                    <QRCode 
+                      value={qrData} 
+                      size={200} 
+                      color={isDark ? '#2563EB' : '#1F2937'}
+                      backgroundColor={isDark ? '#F9FAFB' : '#FFFFFF'}
+                      logoSize={30}
+                      logoBackgroundColor="transparent"
+                    />
+                  ) : (
+                    <View style={styles.qrPlaceholder}>
+                      <Ionicons name="qr-code-outline" size={64} color={textSecondary} />
+                      <Text style={[styles.qrPlaceholderText, { color: textSecondary }]}>
+                        Generating QR Code...
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.qrInfo}>
+                  <Text style={[styles.qrTitle, { color: textPrimary }]}>
+                    Payment QR Code
+                  </Text>
+                  <Text style={[styles.qrSubtitle, { color: textSecondary }]}>
+                    Scan to send {getTokenSymbol()} on {getChainConfig(selectedChain).name}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Address Display */}
-            <View style={styles.addressContainer}>
-              <Text style={styles.addressLabel}>Wallet Address</Text>
-              <View style={styles.addressCard}>
-                <Text style={styles.addressText}>{wallet.address}</Text>
-                <TouchableOpacity onPress={copyAddress} style={styles.addressCopyButton}>
-                  <Ionicons name="copy-outline" size={16} color="#00ff88" />
+            {/* Address Section */}
+            <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="wallet-outline" size={20} color="#2563EB" />
+                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Wallet Address</Text>
+              </View>
+              
+              <View style={[styles.addressCard, { 
+                backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                borderColor 
+              }]}>
+                <Text style={[styles.addressText, { color: textPrimary }]}>
+                  {address}
+                </Text>
+                <TouchableOpacity onPress={copyAddress} style={styles.copyButton}>
+                  <Ionicons name="copy-outline" size={16} color="#2563EB" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Chain Selection */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Chain</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chainScroll}>
-                {availableChains.map((chain) => (
-                  <TouchableOpacity
-                    key={chain}
-                    style={[
-                      styles.chainButton,
-                      selectedChain === chain && styles.selectedChainButton,
-                      isLoading && styles.chainButtonDisabled
-                    ]}
-                    onPress={() => handleChainSwitch(chain)}
-                    disabled={isLoading}
-                  >
-                    <Text style={[
-                      styles.chainButtonText,
-                      selectedChain === chain && styles.selectedChainButtonText,
-                      isLoading && styles.chainButtonTextDisabled
-                    ]}>
-                      {getChainConfig(chain).name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Network Selection */}
+            <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="globe-outline" size={20} color="#10B981" />
+                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Network</Text>
+              </View>
+              
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.optionsScroll}
+              >
+                {availableChains.map((chain) => {
+                  const config = getChainConfig(chain);
+                  const isActive = selectedChain === chain;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={chain}
+                      style={[
+                        styles.optionCard,
+                        { 
+                          backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                          borderColor: isActive ? '#10B981' : borderColor,
+                          borderWidth: isActive ? 2 : 1
+                        }
+                      ]}
+                      onPress={() => setSelectedChain(chain)}
+                    >
+                      <View style={[
+                        styles.optionIcon,
+                        { backgroundColor: isActive ? '#10B981' : isDark ? '#374151' : '#E5E7EB' }
+                      ]}>
+                        <Text style={[
+                          styles.optionIconText,
+                          { color: isActive ? '#FFFFFF' : textSecondary }
+                        ]}>
+                          {config.name.charAt(0)}
+                        </Text>
+                      </View>
+                      <Text style={[
+                        styles.optionText,
+                        { color: isActive ? '#10B981' : textPrimary }
+                      ]}>
+                        {config.name}
+                      </Text>
+                      <Text style={[styles.optionSubtext, { color: textSecondary }]}>
+                        ID: {config.chainId}
+                      </Text>
+                      {isActive && (
+                        <View style={styles.activeIndicator}>
+                          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
             {/* Token Selection */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Token</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tokenScroll}>
-                <TouchableOpacity
-                  style={[
-                    styles.tokenButton,
-                    selectedToken === 'native' && styles.selectedTokenButton
-                  ]}
-                  onPress={() => setSelectedToken('native')}
-                >
+            <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="layers-outline" size={20} color="#F59E0B" />
+                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Token</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={[
+                  styles.tokenCard,
+                  { 
+                    backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                    borderColor: selectedToken === 'native' ? '#F59E0B' : borderColor,
+                    borderWidth: selectedToken === 'native' ? 2 : 1
+                  }
+                ]}
+                onPress={() => setSelectedToken('native')}
+              >
+                <View style={[
+                  styles.tokenIcon,
+                  { backgroundColor: selectedToken === 'native' ? '#F59E0B' : isDark ? '#374151' : '#E5E7EB' }
+                ]}>
                   <Text style={[
-                    styles.tokenButtonText,
-                    selectedToken === 'native' && styles.selectedTokenButtonText
+                    styles.tokenIconText,
+                    { color: selectedToken === 'native' ? '#FFFFFF' : textSecondary }
+                  ]}>
+                    {getChainConfig(selectedChain).nativeCurrency.symbol.charAt(0)}
+                  </Text>
+                </View>
+                <View style={styles.tokenInfo}>
+                  <Text style={[
+                    styles.tokenSymbol,
+                    { color: selectedToken === 'native' ? '#F59E0B' : textPrimary }
                   ]}>
                     {getChainConfig(selectedChain).nativeCurrency.symbol}
                   </Text>
-                  <Text style={styles.tokenLabel}>Native</Text>
-                </TouchableOpacity>
-              </ScrollView>
+                  <Text style={[styles.tokenLabel, { color: textSecondary }]}>
+                    Native Token
+                  </Text>
+                </View>
+                {selectedToken === 'native' && (
+                  <Ionicons name="checkmark-circle" size={20} color="#F59E0B" />
+                )}
+              </TouchableOpacity>
             </View>
 
-            {/* Amount Input (Optional) */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Amount (Optional)</Text>
-              <View style={styles.amountContainer}>
+            {/* Amount Section (Optional) */}
+            <View style={[styles.section, { backgroundColor: surfaceColor, borderColor }]}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="calculator-outline" size={20} color="#6366F1" />
+                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Amount (Optional)</Text>
+              </View>
+              
+              <View style={[styles.amountContainer, { 
+                backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                borderColor 
+              }]}>
                 <TextInput
-                  style={styles.amountInput}
+                  style={[styles.amountInput, { color: textPrimary }]}
                   placeholder="0.0"
-                  placeholderTextColor="#666666"
+                  placeholderTextColor={textSecondary}
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="decimal-pad"
                 />
-                <Text style={styles.amountSymbol}>{getTokenSymbol()}</Text>
+                <Text style={[styles.amountSymbol, { color: textSecondary }]}>
+                  {getTokenSymbol()}
+                </Text>
               </View>
-              <Text style={styles.amountHint}>
+              <Text style={[styles.amountHint, { color: textSecondary }]}>
                 Leave empty to receive any amount
               </Text>
             </View>
 
-            {/* Payment Info Summary */}
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Payment Information</Text>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Chain:</Text>
-                <Text style={styles.summaryValue}>{getChainConfig(selectedChain).name}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Token:</Text>
-                <Text style={styles.summaryValue}>{getTokenSymbol()}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Address:</Text>
-                <Text style={styles.summaryValue}>{formatAddress(wallet.address)}</Text>
-              </View>
-              {amount && (
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>Amount:</Text>
-                  <Text style={styles.summaryValue}>{amount} {getTokenSymbol()}</Text>
+            {/* Payment Summary */}
+            <View style={[styles.summarySection, { backgroundColor: surfaceColor, borderColor }]}>
+              <Text style={[styles.summaryTitle, { color: textPrimary }]}>
+                Payment Information
+              </Text>
+              
+              <View style={styles.summaryContent}>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: textSecondary }]}>Network</Text>
+                  <Text style={[styles.summaryValue, { color: textPrimary }]}>
+                    {getChainConfig(selectedChain).name}
+                  </Text>
                 </View>
-              )}
-            </View>
-
-            {/* Debug Info */}
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugTitle}>Debug Info</Text>
-              <Text style={styles.debugText}>Wallet: {wallet ? 'Connected' : 'Not connected'}</Text>
-              <Text style={styles.debugText}>Selected Chain: {selectedChain}</Text>
-              <Text style={styles.debugText}>QR Data Length: {qrData.length}</Text>
-              <Text style={styles.debugText}>Available Chains: {availableChains.join(', ')}</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: textSecondary }]}>Token</Text>
+                  <Text style={[styles.summaryValue, { color: textPrimary }]}>
+                    {getTokenSymbol()}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: textSecondary }]}>Address</Text>
+                  <Text style={[styles.summaryValue, { color: textPrimary }]}>
+                    {formatAddress(address)}
+                  </Text>
+                </View>
+                {amount && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, { color: textSecondary }]}>Amount</Text>
+                    <Text style={[styles.summaryValue, { color: '#10B981' }]}>
+                      {amount} {getTokenSymbol()}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </ScrollView>
 
           {/* Action Buttons */}
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.copyButton} onPress={copyQRData}>
-              <Ionicons name="copy-outline" size={20} color="#000000" />
-              <Text style={styles.copyButtonText}>Copy QR Data</Text>
+          <View style={[styles.actionButtons, { backgroundColor: surfaceColor, borderTopColor: borderColor }]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}
+              onPress={copyAddress}
+            >
+              <Ionicons name="copy-outline" size={20} color={textPrimary} />
+              <Text style={[styles.actionButtonText, { color: textPrimary }]}>
+                Copy Address
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.shareButton} 
-              onPress={() => setShowQRModal(true)}
+              style={[styles.actionButton, styles.primaryActionButton, { backgroundColor: '#2563EB' }]}
+              onPress={copyQRData}
             >
-              <Ionicons name="share-outline" size={20} color="#ffffff" />
-              <Text style={styles.shareButtonText}>Share QR</Text>
+              <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                Share QR
+              </Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </View>
+        </Animated.View>
+      </SafeAreaView>
     </Modal>
   );
 };
@@ -325,76 +434,113 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
-  safeArea: {
+  content: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    paddingHorizontal: 24,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    fontFamily: 'Inter',
+  
+  // Header
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'center',
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#333333',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  errorContainer: {
-    flex: 1,
+  
+  // Error State
+  errorCard: {
+    borderRadius: 16,
+    padding: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
+    maxWidth: 300,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   errorTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    marginTop: 20,
-    marginBottom: 12,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
     textAlign: 'center',
   },
   errorText: {
     fontSize: 16,
-    color: '#666666',
-    fontFamily: 'Inter',
     textAlign: 'center',
     lineHeight: 24,
+    marginBottom: 24,
   },
-  content: {
+  
+  // Scroll View
+  scrollView: {
     flex: 1,
-    padding: 20,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 20,
+  },
+  
+  // QR Section
+  qrSection: {
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
   qrContainer: {
     alignItems: 'center',
-    marginBottom: 30,
   },
   qrCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
-    shadowColor: '#00ff88',
+    shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 240,
+    minWidth: 240,
   },
   qrPlaceholder: {
     alignItems: 'center',
@@ -403,8 +549,6 @@ const styles = StyleSheet.create({
   },
   qrPlaceholderText: {
     fontSize: 14,
-    color: '#666666',
-    fontFamily: 'Inter',
     marginTop: 12,
     textAlign: 'center',
   },
@@ -413,234 +557,234 @@ const styles = StyleSheet.create({
   },
   qrTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
+    fontWeight: '700',
     marginBottom: 4,
   },
   qrSubtitle: {
     fontSize: 14,
-    color: '#666666',
-    fontFamily: 'Inter',
     textAlign: 'center',
+    lineHeight: 20,
   },
-  addressContainer: {
-    marginBottom: 24,
+  
+  // Sections
+  section: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  addressLabel: {
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    marginBottom: 8,
+    fontWeight: '700',
+    marginLeft: 8,
   },
+  
+  // Address
   addressCard: {
-    backgroundColor: '#111111',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
   },
   addressText: {
     flex: 1,
     fontSize: 14,
-    color: '#ffffff',
     fontFamily: 'monospace',
   },
-  addressCopyButton: {
+  copyButton: {
     padding: 8,
+    marginLeft: 8,
   },
-  section: {
-    marginBottom: 24,
+  
+  // Options
+  optionsScroll: {
+    paddingRight: 20,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    marginBottom: 12,
-  },
-  chainScroll: {
-    flexDirection: 'row',
-  },
-  chainButton: {
-    backgroundColor: '#111111',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#333333',
-  },
-  selectedChainButton: {
-    backgroundColor: '#00ff88',
-    borderColor: '#00ff88',
-  },
-  chainButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter',
-  },
-  selectedChainButtonText: {
-    color: '#000000',
-  },
-  chainButtonDisabled: {
-    opacity: 0.5,
-  },
-  chainButtonTextDisabled: {
-    color: '#666666',
-  },
-  tokenScroll: {
-    flexDirection: 'row',
-  },
-  tokenButton: {
-    backgroundColor: '#111111',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#333333',
+  optionCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 12,
     alignItems: 'center',
-    minWidth: 80,
+    minWidth: 100,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    position: 'relative',
   },
-  selectedTokenButton: {
-    backgroundColor: '#00ff88',
-    borderColor: '#00ff88',
+  optionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  tokenButtonText: {
-    color: '#ffffff',
+  optionIconText: {
     fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'Inter',
+    fontWeight: '700',
   },
-  selectedTokenButtonText: {
-    color: '#000000',
+  optionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
   },
-  tokenLabel: {
+  optionSubtext: {
     fontSize: 12,
-    color: '#666666',
-    fontFamily: 'Inter',
-    marginTop: 2,
+    textAlign: 'center',
   },
-  amountContainer: {
-    backgroundColor: '#111111',
+  activeIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  
+  // Token
+  tokenCard: {
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333333',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tokenIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  tokenIconText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  tokenInfo: {
+    flex: 1,
+  },
+  tokenSymbol: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tokenLabel: {
+    fontSize: 14,
+  },
+  
+  // Amount
+  amountContainer: {
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   amountInput: {
     flex: 1,
     fontSize: 16,
-    color: '#ffffff',
-    fontFamily: 'Inter',
   },
   amountSymbol: {
     fontSize: 16,
-    color: '#666666',
-    fontFamily: 'Inter',
     marginLeft: 8,
   },
   amountHint: {
     fontSize: 12,
-    color: '#666666',
-    fontFamily: 'Inter',
     marginTop: 8,
   },
-  summaryContainer: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
+  
+  // Summary
+  summarySection: {
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#333333',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   summaryTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    marginBottom: 12,
+    fontWeight: '700',
+    marginBottom: 16,
   },
-  summaryItem: {
+  summaryContent: {
+    gap: 12,
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#666666',
-    fontFamily: 'Inter',
   },
   summaryValue: {
     fontSize: 14,
-    color: '#ffffff',
-    fontFamily: 'Inter',
-    fontWeight: '500',
+    fontWeight: '600',
   },
+  
+  // Action Buttons
   actionButtons: {
     flexDirection: 'row',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     gap: 12,
+    borderTopWidth: 0.5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  copyButton: {
+  actionButton: {
     flex: 1,
-    backgroundColor: '#00ff88',
-    paddingVertical: 16,
-    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  copyButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter',
-    marginLeft: 8,
-  },
-  shareButton: {
-    flex: 1,
-    backgroundColor: '#333333',
     paddingVertical: 16,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#555555',
+    gap: 8,
   },
-  shareButtonText: {
-    color: '#ffffff',
+  primaryActionButton: {
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Inter',
-    marginLeft: 8,
   },
-  debugContainer: {
-    backgroundColor: '#2a2a2a',
+  
+  // Primary Button
+  primaryButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#444444',
+    alignItems: 'center',
   },
-  debugTitle: {
-    fontSize: 14,
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '600',
-    color: '#00ff88',
-    fontFamily: 'Inter',
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#cccccc',
-    fontFamily: 'Inter',
-    marginBottom: 4,
   },
 });
