@@ -1,50 +1,35 @@
-# Welcome to your Expo app 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-## Get started
+# zAppIt
 
-1. Install dependencies
+zAppIt is a decentralized finance (DeFi) application that enables seamless **cross-chain payments and fund requests** through the simplicity of **NFC taps**. Beyond payments, zAppIt unlocks **anonymous user networking** powered by **zero-knowledge proofs**, paving the way for decentralized marketplaces, auctions, and privacy-preserving social interactions.
 
-   ```bash
-   npm install
-   ```
+## ✨ Features
 
-2. Start the app
+* **NFC-powered transfers** – tap to send or request funds.
+* **Cross-chain swaps & bridging** – instant transfers across networks.
+* **Microtransaction support** – low-cost, fast transactions.
+* **ZK-proof anonymity** – interact privately without revealing identity.
+* **Anonymous posting and voting** – share content and vote without revealing identity.
+* **Private circles with secret-based membership** – control access to content securely.
+* **Encrypted content storage** – all shared data is stored securely and privately.
+* **On-chain proof verification** – verify actions without exposing sensitive info.
+* **Support for any file type** – text, images, audio, and more.
+* **Future-ready** – upcoming support for *bridged NFC transfers* across different chains.
 
-   ```bash
-   npx expo start
-   ```
+## 🛠️ Built With
 
-In the output, you'll find options to open the app in a
+* **React Native** – cross-platform mobile application.
+* **Garden APIs** – for instant cross-chain bridging.
+* **Polygon** – powering fast, cost-efficient swaps and transfers.
+* **Noir (ZK circuits)** – enabling privacy-preserving networking.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🚀 Future Plans
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+* Integrate bridging directly into NFC transfers (users on different chains can transact seamlessly).
+* Expand beyond mobile to all **NFC-enabled devices** such as smartwatches and wristbands.
+* Enable advanced DeFi use cases like decentralized auctions and marketplaces.
 
-## Get a fresh project
+## 📌 Category
 
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+DeFi / Cross-chain Payments & Networking
