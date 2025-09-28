@@ -7,9 +7,15 @@ EXPO_PUBLIC_PRIVATE_KEY=your_private_key_here
 # RPC URLs (optional - defaults will be used if not provided)
 EXPO_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
 EXPO_PUBLIC_POLYGON_RPC_URL=https://polygon-rpc.com
+EXPO_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
 
-# Default Chain (sepolia, polygon)
-EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
+# Default Chain (sepolia, polygon, arbitrumSepolia)
+EXPO_PUBLIC_DEFAULT_CHAIN=arbitrumSepolia
+
+# Garden Finance API Configuration
+EXPO_PUBLIC_SWAP_API_KEY=your_garden_finance_api_key_here
+EXPO_PUBLIC_QUOTE_URL=https://mainnet.garden.finance/v2/quote
+EXPO_PUBLIC_ORDER_URL=https://mainnet.garden.finance/v2/orders
 
 # Instructions:
 # 1. Create a .env file in your project root
@@ -23,7 +29,9 @@ EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
 # EXPO_PUBLIC_ETHEREUM_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/your-api-key
 # EXPO_PUBLIC_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-api-key
 # EXPO_PUBLIC_DEFAULT_CHAIN=sepolia
+# EXPO_PUBLIC_SWAP_API_KEY=gf_1234567890abcdef1234567890abcdef
 
 # Available Chains:
-# - sepolia (Chain ID: 11155111) - Testnet with LINK, UNI tokens
-# - polygon (Chain ID: 137) - Mainnet with USDC, DAI, WMATIC tokens
+# - sepolia (Chain ID: 11155111) - Ethereum Sepolia Testnet
+# - polygon (Chain ID: 137) - Polygon Mainnet with USDC tokens
+# - arbitrumSepolia (Chain ID: 421614) - Arbitrum Sepolia Testnet with WBTC
