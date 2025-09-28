@@ -10,7 +10,7 @@ export default function SwapScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
       <Swap 
-        apiKey={process.env.EXPO_PUBLIC_SWAP_API_KEY || 'your-api-key-here'}
+        apiKey={'f242ea49332293424c96c562a6ef575a819908c878134dcb4fce424dc84ec796'}
       />
     </SafeAreaView>
   );
