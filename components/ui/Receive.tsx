@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ethers } from 'ethers';
 import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Alert,
@@ -314,6 +315,36 @@ export const Receive: React.FC<ReceiveProps> = ({ onClose }) => {
             >
               <Ionicons name="share-outline" size={20} color="#ffffff" />
               <Text style={styles.shareButtonText}>Share QR</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* NFC Button */}
+          <View style={styles.nfcButtonContainer}>
+            <TouchableOpacity 
+              style={styles.nfcButton} 
+              onPress={() => {
+                alert('NFC Button Clicked!');
+                console.log('=== RECEIVE: NFC button clicked ===');
+                console.log('=== RECEIVE: Navigating to NFC screen ===');
+                try {
+                  router.push({
+                    pathname: '/(tabs)/nfc',
+                    params: {
+                      flow: 'receive',
+                      walletAddress: wallet?.address,
+                      amount: amount,
+                      chain: selectedChain,
+                      asset: selectedToken === 'native' ? getChainConfig(selectedChain).nativeCurrency.symbol : 'TOKEN',
+                    },
+                  } as any);
+                  console.log('=== RECEIVE: Navigation call completed ===');
+                } catch (error) {
+                  console.error('=== RECEIVE: Navigation error ===', error);
+                }
+              }}
+            >
+              <Ionicons name="phone-portrait-outline" size={20} color="#ffffff" />
+              <Text style={styles.nfcButtonText}>📱 Create Payment Request</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -642,5 +673,26 @@ const styles = StyleSheet.create({
     color: '#cccccc',
     fontFamily: 'Inter',
     marginBottom: 4,
+  },
+  nfcButtonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  nfcButton: {
+    backgroundColor: '#333333',
+    paddingVertical: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#555555',
+  },
+  nfcButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter',
+    marginLeft: 8,
   },
 });

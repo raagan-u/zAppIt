@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -14,15 +15,21 @@ import {
 import { getAvailableChains, getChainConfig } from '../../constants/config';
 import { useWallet } from '../../contexts/WalletContext';
 import { getMultipleTokenBalances, getNativeBalance, TokenBalance } from '../../utils/tokenUtils';
-import { NFC } from '../impls/NFC';
 import { PaymentInfo, QR } from '../impls/QR';
 
 interface SendProps {
   onClose: () => void;
+  nfcData?: {
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  } | null;
 }
 
-export const Send: React.FC<SendProps> = ({ onClose }) => {
+export const Send: React.FC<SendProps> = ({ onClose, nfcData }) => {
   const { wallet, provider, currentChain } = useWallet();
+  
   const [recipientAddress, setRecipientAddress] = useState('');
   const [selectedChain, setSelectedChain] = useState(currentChain);
   const [selectedToken, setSelectedToken] = useState<'native' | string>('native');
@@ -31,7 +38,6 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
   const [availableTokens, setAvailableTokens] = useState<TokenBalance[]>([]);
   const [nativeBalance, setNativeBalance] = useState('0');
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [showNFC, setShowNFC] = useState(false);
   const [gasEstimate, setGasEstimate] = useState<string>('');
   const [estimatedFee, setEstimatedFee] = useState<string>('');
   const [lastTransaction, setLastTransaction] = useState<any>(null);
@@ -41,6 +47,31 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
   useEffect(() => {
     loadBalances();
   }, [selectedChain]);
+
+  // Handle NFC data when component loads
+  useEffect(() => {
+    if (nfcData && nfcData.recipient && nfcData.amount) {
+      console.log('=== SEND: NFC data received ===', nfcData);
+      
+      // Populate form with NFC data
+      setRecipientAddress(nfcData.recipient);
+      setAmount(nfcData.amount);
+      
+      // Set chain if provided
+      if (nfcData.chain) {
+        setSelectedChain(nfcData.chain);
+      }
+      
+      // Set token if provided
+      if (nfcData.asset) {
+        if (nfcData.asset === 'ETH' || nfcData.asset === 'native') {
+          setSelectedToken('native');
+        } else {
+          setSelectedToken(nfcData.asset);
+        }
+      }
+    }
+  }, [nfcData]);
 
   const loadBalances = async () => {
     if (!wallet || !provider) return;
@@ -307,7 +338,25 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
   };
 
   const handleNFC = () => {
-    setShowNFC(true);
+    alert('NFC Button Clicked!');
+    console.log('=== SEND: NFC button clicked ===');
+    console.log('=== SEND: Navigating to NFC screen ===');
+    try {
+      // Navigate to NFC screen for receiving payment data
+      router.push({
+        pathname: '/(tabs)/nfc',
+        params: {
+          flow: 'send',
+          amount: amount,
+          recipient: recipientAddress,
+          chain: selectedChain,
+          asset: selectedToken === 'native' ? getChainConfig(selectedChain).nativeCurrency.symbol : 'TOKEN',
+        },
+      } as any);
+      console.log('=== SEND: Navigation call completed ===');
+    } catch (error) {
+      console.error('=== SEND: Navigation error ===', error);
+    }
   };
 
   const handlePaymentInfoReceived = (paymentInfo: PaymentInfo) => {
@@ -495,13 +544,6 @@ export const Send: React.FC<SendProps> = ({ onClose }) => {
           />
         )}
 
-        {/* NFC Scanner Modal */}
-        {showNFC && (
-          <NFC
-            onPaymentInfoReceived={handlePaymentInfoReceived}
-            onClose={() => setShowNFC(false)}
-          />
-        )}
       </View>
     </Modal>
   );

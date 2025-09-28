@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getAvailableChains, getChainConfig } from '../constants/config';
@@ -15,6 +16,14 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   chainName = 'sepolia' 
 }) => {
   const { wallet, provider, isConnected } = useWallet();
+  const { nfcData, recipient, amount: nfcAmount, chain: nfcChain, asset: nfcAsset } = useLocalSearchParams<{
+    nfcData?: string;
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  }>();
+  
   const [nativeBalance, setNativeBalance] = useState<string>('0');
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,6 +32,12 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   const [showTokens, setShowTokens] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [nfcPaymentData, setNfcPaymentData] = useState<{
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  } | null>(null);
 
   const loadBalance = async () => {
     if (!wallet || !isConnected) {
@@ -69,6 +84,42 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   useEffect(() => {
     loadBalance();
   }, [wallet, isConnected, currentChain]);
+
+  // Handle NFC data when component loads
+  useEffect(() => {
+    if (nfcData === 'true' && recipient && nfcAmount) {
+      console.log('=== WALLET: NFC data received ===', { recipient, nfcAmount, nfcChain, nfcAsset });
+      
+      // Store NFC payment data
+      setNfcPaymentData({
+        recipient,
+        amount: nfcAmount,
+        chain: nfcChain,
+        asset: nfcAsset,
+      });
+      
+      // Set chain if provided
+      if (nfcChain) {
+        setCurrentChain(nfcChain);
+      }
+      
+      // Show success message and open Send modal
+      Alert.alert(
+        'NFC Payment Request Received',
+        `Payment request received:\nRecipient: ${recipient}\nAmount: ${nfcAmount} ${nfcAsset || 'ETH'}`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Open Send',
+            onPress: () => setShowSendModal(true),
+          },
+        ]
+      );
+    }
+  }, [nfcData, recipient, nfcAmount, nfcChain, nfcAsset]);
 
   const switchChain = (newChain: string) => {
     setCurrentChain(newChain);
@@ -242,7 +293,13 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
 
         {/* Send Modal */}
         {showSendModal && (
-          <Send onClose={() => setShowSendModal(false)} />
+          <Send 
+            onClose={() => {
+              setShowSendModal(false);
+              setNfcPaymentData(null); // Clear NFC data when modal closes
+            }} 
+            nfcData={nfcPaymentData}
+          />
         )}
 
         {/* Receive Modal */}
