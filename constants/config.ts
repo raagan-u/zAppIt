@@ -21,46 +21,67 @@ export interface ChainConfig {
 
 export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
   sepolia: {
-    name: 'Sepolia Testnet',
+    name: "Sepolia Testnet",
     chainId: 11155111,
-    rpcUrl:  'https://eth-sepolia.public.blastapi.io',
-    blockExplorer: 'https://sepolia.etherscan.io',
+    rpcUrl: "https://eth-sepolia.public.blastapi.io",
+    blockExplorer: "https://sepolia.etherscan.io",
     nativeCurrency: {
-      name: 'Sepolia Ether',
-      symbol: 'ETH',
+      name: "Sepolia Ether",
+      symbol: "ETH",
       decimals: 18,
     },
     tokens: [
       {
-        address: '0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9', // PayPal USD
-        name: 'PayPal USD',
-        symbol: 'PAYPALUSD',
+        address: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9", // PayPal USD
+        name: "PayPal USD",
+        symbol: "PAYPALUSD",
         decimals: 6,
       },
     ],
   },
   polygon: {
-    name: 'Polygon',
+    name: "Polygon",
     chainId: 137,
-    rpcUrl:  'https://rpc-amoy.polygon.technology/',
-    blockExplorer: 'https://polygonscan.com',
+    rpcUrl: "https://rpc-amoy.polygon.technology/",
+    blockExplorer: "https://polygonscan.com",
     nativeCurrency: {
-      name: 'MATIC',
-      symbol: 'MATIC',
+      name: "MATIC",
+      symbol: "MATIC",
       decimals: 18,
     },
     tokens: [
       {
-        address: '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582', // USDC
-        name: 'USD Coin',
-        symbol: 'USDC',
+        address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // USDC
+        name: "USD Coin",
+        symbol: "USDC",
         decimals: 6,
-      }
+      },
+    ],
+  },
+  arbitrumSepolia: {
+    name: "Arbitrum Sepolia",
+    chainId: 421614,
+    rpcUrl:
+      process.env.EXPO_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL ||
+      "https://sepolia-rollup.arbitrum.io/rpc",
+    blockExplorer: "https://sepolia.arbiscan.io",
+    nativeCurrency: {
+      name: "Arbitrum Sepolia Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    tokens: [
+      {
+        address: "0x1234567890123456789012345678901234567890", // WBTC placeholder
+        name: "Wrapped Bitcoin",
+        symbol: "WBTC",
+        decimals: 8,
+      },
     ],
   },
 };
 
-export const DEFAULT_CHAIN = process.env.EXPO_PUBLIC_DEFAULT_CHAIN || 'sepolia';
+export const DEFAULT_CHAIN = process.env.EXPO_PUBLIC_DEFAULT_CHAIN || "sepolia";
 
 export const getChainConfig = (chainName: string): ChainConfig => {
   const config = CHAIN_CONFIGS[chainName];
