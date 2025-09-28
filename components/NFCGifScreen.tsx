@@ -9,16 +9,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNFCReader } from './UseNfcReader';
 import { useSimpleHCE } from './UseSimpleHCE';
 
-interface PaymentData {
-  address: string;
-  amount: string;
-  chain_id: string;
-  asset: string;
-  chain: string;
-  timestamp?: number;
-}
 
 export default function NFCGifScreen() {
+  console.log('=== NFCGifScreen component rendered ===');
+  console.log('=== NFCGifScreen component rendered ===');
+  console.log('=== NFCGifScreen component rendered ===');
+  
   const { flow, walletAddress, amount, recipient, chain, asset } = useLocalSearchParams<{
     flow: 'send' | 'receive';
     walletAddress?: string;
@@ -28,9 +24,12 @@ export default function NFCGifScreen() {
     asset?: string;
   }>();
 
+  console.log('NFCGifScreen params:', { flow, walletAddress, amount, recipient, chain, asset });
+  console.log('NFCGifScreen params:', { flow, walletAddress, amount, recipient, chain, asset });
+  console.log('NFCGifScreen params:', { flow, walletAddress, amount, recipient, chain, asset });
+
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'active' | 'success' | 'error'>('idle');
   const [nfcMessage, setNfcMessage] = useState<string>('');
-  const [receivedPaymentData, setReceivedPaymentData] = useState<PaymentData | null>(null);
 
   // NFC Hooks
   const { sendMessage, stopSession, isEnabled, isLoading: hceLoading } = useSimpleHCE();
@@ -52,17 +51,22 @@ export default function NFCGifScreen() {
       console.log('NFC parameters:', { flow, walletAddress, amount, chain, asset });
     }
 
-    // Start NFC process based on flow
-    if (flow === 'send') {
-      // When flow is 'send', we want to RECEIVE payment data from another device
-      startNFCReceive();
-    } else {
-      // When flow is 'receive', we want to SEND payment data to another device
-      startNFCSend();
-    }
+    // Add a small delay to prevent immediate execution
+    const timer = setTimeout(() => {
+      console.log('Starting NFC process after delay...');
+      // Start NFC process based on flow
+      if (flow === 'send') {
+        // when flow is send, NFC should be listening for the payment data
+        startNFCReceive();
+      } else {
+        // when flow is receive, NFC should be sending the payment data
+        startNFCSend();
+      }
+    }, 1000);
 
     // Cleanup on unmount
     return () => {
+      clearTimeout(timer);
       if (flow === 'send') {
         stopListening();
       } else {
@@ -71,49 +75,43 @@ export default function NFCGifScreen() {
     };
   }, [flow]);
 
+
   const startNFCSend = async () => {
     try {
+      console.log('Starting NFC send process...');
       setNfcStatus('active');
 
       // Prepare payment data
-      const paymentData: PaymentData = {
+      const paymentData = {
         address: walletAddress || '0x0000000000000000000000000000000000000000',
         amount: amount || '0',
-        chain_id: getChainIdFromName(chain || 'sepolia'),
+        chain_id: '11155111', // Sepolia testnet - you might want to map this from chain name
         asset: asset || 'ETH',
-        chain: chain || 'sepolia',
-        timestamp: Date.now(),
+        chain: chain || 'base_sepolia',
       };
 
-      console.log('Sending payment data via NFC:', paymentData);
+      console.log('Payment data prepared:', paymentData);
+      console.log('Calling sendMessage...');
       await sendMessage(paymentData);
+      console.log('sendMessage completed successfully');
       setNfcStatus('success');
-      
-      // Navigate back to receive page with success after delay
+      // Navigate back after success
       setTimeout(() => {
         router.back();
       }, 2000);
-      
     } catch (error) {
       console.error('Error in NFC send:', error);
       setNfcStatus('error');
-      
-      // Provide more specific error messages
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      if (errorMessage.includes('not supported')) {
-        Alert.alert('NFC Not Supported', 'NFC is not supported on this device.');
-      } else if (errorMessage.includes('not enabled')) {
-        Alert.alert('NFC Disabled', 'Please enable NFC in your device settings and try again.');
-      } else {
-        Alert.alert('NFC Error', `Failed to start NFC send: ${errorMessage}`);
-      }
+      Alert.alert('NFC Error', 'Failed to start NFC send. Please try again.');
     }
   };
 
   const startNFCReceive = async () => {
     try {
+      console.log('Starting NFC receive process...');
       setNfcStatus('active');
 
+      console.log('Calling startListening...');
       await startListening((message: string) => {
         console.log('Received NFC message:', message);
         setNfcMessage(message);
@@ -121,17 +119,10 @@ export default function NFCGifScreen() {
 
         try {
           // Parse the received payment data
-          const paymentData: PaymentData = JSON.parse(message);
+          const paymentData = JSON.parse(message);
           console.log('Parsed payment data:', paymentData);
-          setReceivedPaymentData(paymentData);
 
-          // Check if we need to bridge between different chains
-          if (paymentData.chain !== chain) {
-            console.log('Different chains detected, initiating bridge...');
-            initiateBridge(paymentData);
-          }
-
-          // Navigate back to send page with the received payment data
+          // Navigate back to previous page with the received payment data
           setTimeout(() => {
             router.back();
           }, 2000);
@@ -141,54 +132,14 @@ export default function NFCGifScreen() {
           Alert.alert('Parse Error', 'Failed to parse received payment data.');
         }
       });
+      console.log('startListening completed successfully');
     } catch (error) {
       console.error('Error in NFC receive:', error);
       setNfcStatus('error');
-      
-      // Provide more specific error messages
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      if (errorMessage.includes('not supported')) {
-        Alert.alert('NFC Not Supported', 'NFC is not supported on this device.');
-      } else if (errorMessage.includes('not enabled')) {
-        Alert.alert('NFC Disabled', 'Please enable NFC in your device settings and try again.');
-      } else if (errorMessage.includes('timeout')) {
-        Alert.alert('NFC Timeout', 'No NFC tag detected. Please try again.');
-      } else {
-        Alert.alert('NFC Error', `Failed to start NFC receive: ${errorMessage}`);
-      }
+      Alert.alert('NFC Error', 'Failed to start NFC receive. Please try again.');
     }
   };
 
-  const initiateBridge = (paymentData: PaymentData) => {
-    try {
-      console.log('Bridge functionality would be initiated here with:', {
-        sourceChain: chain,
-        destChain: paymentData.chain,
-        sourceAmount: amount,
-        destAmount: paymentData.amount,
-        recipient: paymentData.address,
-      });
-      
-      // TODO: Implement bridge functionality when chainConfig and bridge are available
-      // const sourceChainConfig = Object.values(chainConfig).find((c) => c.name === chain);
-      // const destChainConfig = Object.values(chainConfig).find((c) => c.name === paymentData.chain);
-      // ... rest of bridge logic
-      
-    } catch (error) {
-      console.error('Error initiating bridge:', error);
-      Alert.alert('Bridge Error', 'Failed to initiate cross-chain bridge.');
-    }
-  };
-
-  const getChainIdFromName = (chainName: string): string => {
-    const chainMap: Record<string, string> = {
-      'sepolia': '11155111',
-      'polygon': '137',
-      'base_sepolia': '84532',
-      'arbitrum_sepolia': '421614',
-    };
-    return chainMap[chainName] || '11155111';
-  };
 
   const handleCancel = async () => {
     console.log('NFC process cancelled by user');
@@ -203,43 +154,6 @@ export default function NFCGifScreen() {
     router.back();
   };
 
-  const getStatusText = () => {
-    switch (nfcStatus) {
-      case 'active':
-        return flow === 'send' 
-          ? 'Listening for Payment Data...' 
-          : 'Broadcasting Payment Data...';
-      case 'success':
-        return flow === 'send' 
-          ? 'Payment Data Received!' 
-          : 'Payment Data Sent!';
-      case 'error':
-        return 'NFC Error';
-      case 'idle':
-      default:
-        return flow === 'send' 
-          ? 'Preparing to Receive...' 
-          : 'Preparing to Send...';
-    }
-  };
-
-  const getSubStatusText = () => {
-    switch (nfcStatus) {
-      case 'active':
-        return flow === 'send'
-          ? 'Keep devices close to receive payment data'
-          : 'Keep devices close to send payment data';
-      case 'success':
-        return flow === 'send'
-          ? 'Payment data has been received successfully'
-          : 'Payment data has been sent successfully';
-      case 'error':
-        return 'Something went wrong with the NFC operation';
-      case 'idle':
-      default:
-        return 'Initializing NFC...';
-    }
-  };
 
   return (
     <SafeAreaView className="bg-dark-bg flex-1">
@@ -269,17 +183,32 @@ export default function NFCGifScreen() {
 
         {/* Status Text */}
         <Text className="mb-4 text-center font-sans text-lg font-semibold text-white">
-          {getStatusText()}
+          {nfcStatus === 'active' &&
+            (flow === 'send' ? 'Broadcasting Payment Data...' : 'Listening for Payment...')}
+          {nfcStatus === 'success' &&
+            (flow === 'send' ? 'Payment Request Received!' : 'Payment Request Sent!')}
+          {nfcStatus === 'error' && 'NFC Error'}
+          {nfcStatus === 'idle' &&
+            (flow === 'send' ? 'Preparing to Send...' : 'Preparing to Receive...')}
         </Text>
         <Text className="text-center font-sans text-sm text-gray-400">
-          {getSubStatusText()}
+          {nfcStatus === 'active' &&
+            (flow === 'send'
+              ? 'Keep devices close to send transaction data'
+              : 'Keep devices close to receive payment data')}
+          {nfcStatus === 'success' &&
+            (flow === 'send'
+              ? 'Payment request has been received successfully'
+              : 'Payment request has been sent successfully')}
+          {nfcStatus === 'error' && 'Something went wrong with the NFC operation'}
+          {nfcStatus === 'idle' && 'Initializing NFC...'}
         </Text>
 
         {/* Loading indicator */}
         {(hceLoading || readerLoading) && (
           <View className="mt-4">
             <Text className="text-center font-sans text-sm text-gray-400">
-              {flow === 'send' ? 'Initializing NFC reader...' : 'Setting up HCE...'}
+              {flow === 'send' ? 'Setting up HCE...' : 'Initializing NFC reader...'}
             </Text>
           </View>
         )}
@@ -288,7 +217,7 @@ export default function NFCGifScreen() {
         {flow === 'send' && (
           <View className="mt-4">
             <Text className="text-center font-sans text-sm text-gray-400">
-              Reader Status: {isListening ? 'Listening' : 'Stopped'}
+              HCE Status: {isEnabled ? 'Active' : 'Inactive'}
             </Text>
           </View>
         )}
@@ -296,31 +225,28 @@ export default function NFCGifScreen() {
         {flow === 'receive' && (
           <View className="mt-4">
             <Text className="text-center font-sans text-sm text-gray-400">
-              HCE Status: {isEnabled ? 'Active' : 'Inactive'}
+              Reader Status: {isListening ? 'Listening' : 'Stopped'}
             </Text>
           </View>
         )}
 
-        {/* Received Payment Data Display */}
-        {receivedPaymentData && (
-          <View className="mt-6 w-full rounded-xl bg-gray-800 p-4">
-            <Text className="mb-2 font-sans text-sm font-semibold text-white">
-              Received Payment Data:
-            </Text>
-            <Text className="font-sans text-xs text-gray-400">
-              Address: {receivedPaymentData.address.slice(0, 10)}...{receivedPaymentData.address.slice(-8)}
-            </Text>
-            <Text className="font-sans text-xs text-gray-400">
-              Amount: {receivedPaymentData.amount} {receivedPaymentData.asset}
-            </Text>
-            <Text className="font-sans text-xs text-gray-400">
-              Chain: {receivedPaymentData.chain}
-            </Text>
-          </View>
-        )}
+        {/* Manual Start Button for Testing */}
+        <TouchableOpacity 
+          onPress={() => {
+            console.log('Manual start button pressed');
+            if (flow === 'send') {
+              startNFCReceive();
+            } else {
+              startNFCSend();
+            }
+          }} 
+          className="mt-4 rounded-xl bg-green-600 px-8 py-3"
+        >
+          <Text className="font-sans text-base font-semibold text-white">Start NFC (Manual)</Text>
+        </TouchableOpacity>
 
         {/* Cancel Button */}
-        <TouchableOpacity onPress={handleCancel} className="mt-8 rounded-xl bg-gray-700 px-8 py-3">
+        <TouchableOpacity onPress={handleCancel} className="mt-4 rounded-xl bg-gray-700 px-8 py-3">
           <Text className="font-sans text-base font-semibold text-white">Cancel</Text>
         </TouchableOpacity>
       </View>

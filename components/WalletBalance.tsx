@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ethers } from 'ethers';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -27,6 +28,14 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   chainName = 'sepolia' 
 }) => {
   const { wallet, provider, isConnected } = useWallet();
+  const { nfcData, recipient, amount: nfcAmount, chain: nfcChain, asset: nfcAsset } = useLocalSearchParams<{
+    nfcData?: string;
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  }>();
+  
   const [nativeBalance, setNativeBalance] = useState<string>('0');
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +45,13 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
   const [showTokens, setShowTokens] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
+
+  const [nfcPaymentData, setNfcPaymentData] = useState<{
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  } | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -74,6 +90,46 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadBalance();
+  }, [wallet, isConnected, currentChain]);
+
+  // Handle NFC data when component loads
+  useEffect(() => {
+    if (nfcData === 'true' && recipient && nfcAmount) {
+      console.log('=== WALLET: NFC data received ===', { recipient, nfcAmount, nfcChain, nfcAsset });
+      
+      // Store NFC payment data
+      setNfcPaymentData({
+        recipient,
+        amount: nfcAmount,
+        chain: nfcChain,
+        asset: nfcAsset,
+      });
+      
+      // Set chain if provided
+      if (nfcChain) {
+        setCurrentChain(nfcChain);
+      }
+      
+      // Show success message and open Send modal
+      Alert.alert(
+        'NFC Payment Request Received',
+        `Payment request received:\nRecipient: ${recipient}\nAmount: ${nfcAmount} ${nfcAsset || 'ETH'}`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Open Send',
+            onPress: () => setShowSendModal(true),
+          },
+        ]
+      );
+    }
+  }, [nfcData, recipient, nfcAmount, nfcChain, nfcAsset]);
 
   const switchChain = async (newChain: string) => {
     if (newChain === currentChain) return;
@@ -138,8 +194,8 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
     return (
       <View style={[styles.disconnectedContainer, { backgroundColor }]}>
         <View style={[styles.disconnectedCard, { backgroundColor: surfaceColor, borderColor }]}>
-          <Ionicons name="wallet-outline" size={48} color={textSecondary} />
-          <Text style={[styles.disconnectedText, { color: textSecondary }]}>
+          <Ionicons name="wallet-outline" size={48} color="#2563EB" />
+          <Text style={[styles.disconnectedText, { color: textPrimary }]}>
             Connect your wallet to view balance
           </Text>
         </View>
@@ -367,6 +423,21 @@ export const WalletBalance: React.FC<WalletBalanceProps> = ({
         />
       )}
 
+      {/* Send Modal */}
+      {showSendModal && (
+        <Send 
+          isVisible={showSendModal}
+          onClose={() => {
+            setShowSendModal(false);
+            setNfcPaymentData(null); // Clear NFC data when modal closes
+          }} 
+          nfcData={nfcPaymentData}
+          nativeBalance={nativeBalance}
+          tokenBalances={tokenBalances}
+        />
+      )}
+
+      {/* Receive Modal */}
       {showReceiveModal && (
         <Receive
           isVisible={showReceiveModal}
@@ -389,25 +460,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   disconnectedCard: {
-    borderRadius: 16,
-    padding: 32,
+    borderRadius: 20,
+    padding: 40,
     alignItems: 'center',
     width: '100%',
-    maxWidth: 300,
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    maxWidth: 320,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   disconnectedText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 24,
+    marginTop: 20,
+    lineHeight: 26,
   },
   
   // Connected State

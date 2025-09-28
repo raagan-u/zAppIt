@@ -2,38 +2,45 @@ import { Ionicons } from '@expo/vector-icons';
 import { ethers } from 'ethers';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View,
 } from 'react-native';
 import { getAvailableChains, getChainConfig } from '../../constants/config';
 import { useWallet } from '../../contexts/WalletContext';
 import { getMultipleTokenBalances, getNativeBalance, TokenBalance } from '../../utils/tokenUtils';
-import { NFC } from '../impls/NFC';
 import { PaymentInfo, QR } from '../impls/QR';
+import { useNFCReader } from '../UseNfcReader';
+import { useSimpleHCE } from '../UseSimpleHCE';
 
 interface SendProps {
   isVisible: boolean;
   onClose: () => void;
+  nfcData?: {
+    recipient?: string;
+    amount?: string;
+    chain?: string;
+    asset?: string;
+  } | null;
   nativeBalance: string;
   tokenBalances: TokenBalance[];
 }
 
 type SendStep = 'form' | 'confirm' | 'sending' | 'success';
 
-export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, tokenBalances }) => {
+export const Send: React.FC<SendProps> = ({ isVisible, onClose, nfcData, nativeBalance, tokenBalances }) => {
   const { wallet, provider, currentChain } = useWallet();
   const [step, setStep] = useState<SendStep>('form');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -47,6 +54,10 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
   const [showNFC, setShowNFC] = useState(false);
   const [transactionHash, setTransactionHash] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
+  
+  // NFC Hooks
+  const { sendMessage, stopSession, isEnabled, isLoading: hceLoading } = useSimpleHCE();
+  const { startListening, stopListening, isListening, isLoading: readerLoading } = useNFCReader();
   
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -73,6 +84,31 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
       }).start();
     }
   }, [isVisible, selectedChain]);
+
+  // Handle NFC data when component loads
+  useEffect(() => {
+    if (nfcData && nfcData.recipient && nfcData.amount) {
+      console.log('=== SEND: NFC data received ===', nfcData);
+      
+      // Populate form with NFC data
+      setRecipientAddress(nfcData.recipient);
+      setAmount(nfcData.amount);
+      
+      // Set chain if provided
+      if (nfcData.chain) {
+        setSelectedChain(nfcData.chain);
+      }
+      
+      // Set token if provided
+      if (nfcData.asset) {
+        if (nfcData.asset === 'ETH' || nfcData.asset === 'native') {
+          setSelectedToken('native');
+        } else {
+          setSelectedToken(nfcData.asset);
+        }
+      }
+    }
+  }, [nfcData]);
 
   const loadBalances = async () => {
     if (!wallet || !provider) return;
@@ -204,6 +240,56 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
     }
   };
 
+  const handleQRScan = () => {
+    setShowQRScanner(true);
+  };
+
+  const handleNFCReceive = async () => {
+    console.log('=== SEND: Starting NFC receive (listening for payment data) ===');
+    setShowNFC(true);
+    
+    try {
+      await startListening((message: string) => {
+        console.log('=== SEND: Received NFC message ===', message);
+        setShowNFC(false);
+        
+        try {
+          const paymentData = JSON.parse(message);
+          console.log('=== SEND: Parsed payment data ===', paymentData);
+          
+          // Auto-fill form with received data
+          setRecipientAddress(paymentData.address);
+          setAmount(paymentData.amount);
+          
+          if (paymentData.chain) {
+            setSelectedChain(paymentData.chain);
+          }
+          
+          if (paymentData.asset) {
+            if (paymentData.asset === 'ETH' || paymentData.asset === 'native') {
+              setSelectedToken('native');
+            } else {
+              setSelectedToken(paymentData.asset);
+            }
+          }
+          
+          Alert.alert(
+            'Payment Request Received',
+            `Received payment request:\nRecipient: ${paymentData.address}\nAmount: ${paymentData.amount} ${paymentData.asset || 'ETH'}`,
+            [{ text: 'OK' }]
+          );
+        } catch (parseError) {
+          console.error('=== SEND: Error parsing NFC message ===', parseError);
+          Alert.alert('Parse Error', 'Failed to parse received payment data.');
+        }
+      });
+    } catch (error) {
+      console.error('=== SEND: Error in NFC receive ===', error);
+      setShowNFC(false);
+      Alert.alert('NFC Error', 'Failed to start NFC receive. Please try again.');
+    }
+  };
+
   const handlePaymentInfoReceived = (paymentInfo: PaymentInfo) => {
     setRecipientAddress(paymentInfo.recipientAddress);
     
@@ -227,6 +313,12 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
   };
 
   const handleClose = () => {
+    // Stop NFC operations when closing
+    if (showNFC) {
+      stopListening();
+      setShowNFC(false);
+    }
+    
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 200,
@@ -285,6 +377,12 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
               onPress={() => setShowQRScanner(true)}
             >
               <Ionicons name="qr-code" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.scanButton, { backgroundColor: '#10B981' }]}
+              onPress={handleNFCReceive}
+            >
+              <Ionicons name="phone-portrait" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -459,10 +557,34 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
               Available: {tokenInfo.balance} {tokenInfo.symbol}
             </Text>
           );
-        })()}
-      </View>
+         })()}
+       </View>
 
-      {/* Continue Button */}
+       {/* NFC Status */}
+       {showNFC && (
+         <View style={[styles.nfcStatusContainer, { backgroundColor: surfaceColor, borderColor }]}>
+           <View style={styles.nfcStatusHeader}>
+             <Ionicons name="phone-portrait" size={20} color="#10B981" />
+             <Text style={[styles.nfcStatusTitle, { color: textPrimary }]}>
+               NFC Listening
+             </Text>
+           </View>
+           <Text style={[styles.nfcStatusText, { color: textSecondary }]}>
+             {isListening ? 'Listening for payment data...' : 'Initializing...'}
+           </Text>
+           <TouchableOpacity 
+             style={[styles.nfcStopButton, { backgroundColor: '#EF4444' }]}
+             onPress={() => {
+               stopListening();
+               setShowNFC(false);
+             }}
+           >
+             <Text style={styles.nfcStopButtonText}>Stop NFC</Text>
+           </TouchableOpacity>
+         </View>
+       )}
+
+       {/* Continue Button */}
       <TouchableOpacity 
         style={[styles.primaryButton, { backgroundColor: '#2563EB' }]}
         onPress={handleContinue}
@@ -608,13 +730,6 @@ export const Send: React.FC<SendProps> = ({ isVisible, onClose, nativeBalance, t
           />
         )}
 
-        {/* NFC Scanner Modal */}
-        {showNFC && (
-          <NFC
-            onPaymentInfoReceived={handlePaymentInfoReceived}
-            onClose={() => setShowNFC(false)}
-          />
-        )}
       </SafeAreaView>
     </Modal>
   );
@@ -832,6 +947,43 @@ const styles = StyleSheet.create({
   balanceText: {
     fontSize: 14,
     marginTop: 8,
+  },
+  
+  // NFC Status
+  nfcStatusContainer: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  nfcStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nfcStatusTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  nfcStatusText: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  nfcStopButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  nfcStopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   
   // Primary Button
